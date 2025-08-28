@@ -223,15 +223,18 @@ def parse_json_and_build_network(json_data:Union[str, Dict], on_update_func=None
             adapters[adapter_data['name']] = adapter
 
     for host_name, host in hosts.items():
-        # Wire simple classical messaging between quantum-capable hosts
+        # Wire simple classical messaging between quantum-capable hosts, but do NOT
+        # override adapter-provided routing if it already exists.
         if hasattr(host, 'receive_classical_data'):
-            for other_host_name, other_host in hosts.items():
-                if hasattr(other_host, 'receive_classical_data') and host.name != other_host.name:
-                    # Provide a simple point-to-point classical send callable
-                    try:
-                        host.send_classical_data = lambda msg, other_host=other_host: other_host.receive_classical_data(msg)
-                    except Exception:
-                        pass
+            current_sender = getattr(host, 'send_classical_data', None)
+            has_adapter_sender = callable(current_sender) and getattr(current_sender, '__name__', '') != '<lambda>'
+            if not has_adapter_sender:
+                for other_host_name, other_host in hosts.items():
+                    if hasattr(other_host, 'receive_classical_data') and host.name != other_host.name:
+                        try:
+                            host.send_classical_data = lambda msg, other_host=other_host: other_host.receive_classical_data(msg)
+                        except Exception:
+                            pass
 
         if isinstance(host, QuantumAdapter):
             if host.name in hosts:

@@ -3,7 +3,12 @@ from __future__ import annotations
 import threading
 import time
 from typing import List
-import networkx as nx
+try:
+    import networkx as nx  # Optional dependency for routing
+    _USE_NETWORKX = True
+except Exception:
+    nx = None
+    _USE_NETWORKX = False
 from classical_network.enum import PacketType
 from core.enums import NodeType
 from core.exceptions import NotConnectedError
@@ -19,7 +24,52 @@ if TYPE_CHECKING:
 class RouteTable(object):
 
     def __init__(self):
-        self.network_graph = nx.Graph()
+        if _USE_NETWORKX:
+            self.network_graph = nx.Graph()
+        else:
+            # Minimal undirected graph with BFS shortest path as a fallback
+            class _SimpleGraph:
+                def __init__(self):
+                    self.adj = {}
+
+                def add_edge(self, u, v):
+                    if u not in self.adj:
+                        self.adj[u] = set()
+                    if v not in self.adj:
+                        self.adj[v] = set()
+                    self.adj[u].add(v)
+                    self.adj[v].add(u)
+
+                def shortest_path(self, source, target):
+                    if source == target:
+                        return [source]
+                    from collections import deque
+                    visited = {source}
+                    parent = {source: None}
+                    q = deque([source])
+                    found = False
+                    while q:
+                        u = q.popleft()
+                        for w in self.adj.get(u, ()): 
+                            if w in visited:
+                                continue
+                            visited.add(w)
+                            parent[w] = u
+                            if w == target:
+                                found = True
+                                q.clear()
+                                break
+                            q.append(w)
+                    if not found:
+                        return []
+                    # Reconstruct path
+                    path = [target]
+                    while parent[path[-1]] is not None:
+                        path.append(parent[path[-1]])
+                    path.reverse()
+                    return path
+
+            self.network_graph = _SimpleGraph()
 
     def add_edge(self, from_node: ClassicalNode, to_node: ClassicalNode):
         self.network_graph.add_edge(from_node, to_node)
@@ -27,8 +77,12 @@ class RouteTable(object):
     def get_path(
         self, from_node: ClassicalNode, to_node: ClassicalNode
     ) -> List[ClassicalNode]:
-        path = nx.shortest_path(self.network_graph, from_node, to_node)
-        return path
+        if _USE_NETWORKX:
+            path = nx.shortest_path(self.network_graph, from_node, to_node)
+            return path
+        else:
+            # Use fallback BFS
+            return self.network_graph.shortest_path(from_node, to_node)
 
 
 class InternetExchange(ClassicalNode):

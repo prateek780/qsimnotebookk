@@ -141,16 +141,21 @@ class Node(Sobject):
         pass
 
     def on_update(self, event):
-        from server.api.simulation.manager import SimulationManager
         # Temporalty
         with open("log.txt", "a") as f:
             f.write(f"{self.name} received event {event.data}\n")
 
         if self.on_update_func:
             self.on_update_func(event)
-
-        elif SimulationManager.get_instance().is_running:
-            SimulationManager.get_instance().on_update(event)
+        else:
+            # Avoid hard dependency on server modules during notebook/local runs
+            try:
+                from server.api.simulation.manager import SimulationManager
+                if SimulationManager.get_instance().is_running:
+                    SimulationManager.get_instance().on_update(event)
+            except Exception:
+                # Server stack not available; ignore and continue
+                pass
 
 
     def to_dict(self):

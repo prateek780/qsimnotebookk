@@ -10,6 +10,7 @@ from quantum_network.channel import QuantumChannel
 from quantum_network.host import QuantumHost
 from quantum_network.repeater import QuantumRepeater
 from utils.visualize import visualize_network
+from classical_network.presets.connection_presets import DEFAULT_PRESET
 
 
 def build_network_1(zone1):
@@ -55,15 +56,13 @@ def build_network_1(zone1):
     connection_ar = ClassicConnection(
         node_1=alice,
         node_2=router,
-        bandwidth=1000,
-        latency=10,
+        config=DEFAULT_PRESET,
         name="Alice-Router_Zone1 Connection",
     )
     connection_rb = ClassicConnection(
         node_1=router,
         node_2=bob,
-        bandwidth=1000,
-        latency=10,
+        config=DEFAULT_PRESET,
         name="Router_Zone1-Bob Connection",
     )
     alice.add_connection(connection_ar)
@@ -119,15 +118,13 @@ def build_network_2(zone1):
     connection_ar = ClassicConnection(
         node_1=charlie,
         node_2=router,
-        bandwidth=1000,
-        latency=10,
+        config=DEFAULT_PRESET,
         name="Alice-Router_Zone1 Connection",
     )
     connection_rb = ClassicConnection(
         node_1=router,
         node_2=dave,
-        bandwidth=1000,
-        latency=10,
+        config=DEFAULT_PRESET,
         name="Router_Zone1-Bob Connection",
     )
     charlie.add_connection(connection_ar)
@@ -235,8 +232,7 @@ def add_hybrid(world: World):
     adapter_network1_connection = ClassicConnection(
         classic_router1,
         adapter1.local_classical_router,
-        10,
-        10,
+        DEFAULT_PRESET,
         name="Router1 Adapter1 Connection",
     )
     adapter1.local_classical_router.add_connection(adapter_network1_connection)
@@ -260,8 +256,7 @@ def add_hybrid(world: World):
     adapter_network2_connection = ClassicConnection(
         classic_router2,
         adapter2.local_classical_router,
-        10,
-        10,
+        DEFAULT_PRESET,
         name="Router2 Adapter2 Connection",
     )
     adapter2.local_classical_router.add_connection(adapter_network2_connection)

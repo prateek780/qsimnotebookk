@@ -113,6 +113,12 @@ class InteractiveQuantumHost(QuantumNode):
         else:
             print(f" Using student implementation: {type(student_implementation).__name__}")
             self.validate_student_implementation()
+            # Ensure bridges/plugins that expect a back-reference get it
+            try:
+                if hasattr(self.student_implementation, 'host') and getattr(self.student_implementation, 'host', None) is None:
+                    self.student_implementation.host = self
+            except Exception:
+                pass
             
         # Force require_student_code to always be True - no exceptions!
         self.require_student_code = True
@@ -219,6 +225,14 @@ class InteractiveQuantumHost(QuantumNode):
         - estimate_error_rate(other_host, shared_indices)
         """
         self.student_implementation = implementation
+        # Provide back-reference for bridges that need it
+        try:
+            if hasattr(self.student_implementation, 'host') and getattr(self.student_implementation, 'host', None) is None:
+                self.student_implementation.host = self
+        except Exception:
+            pass
+        # Validate now so protocol can proceed
+        self.validate_student_implementation()
         print(f" Updated to student implementation: {type(implementation).__name__}")
 
     def prepare_qubit(self, basis: str, bit: int) -> qt.Qobj:

@@ -1,8 +1,14 @@
 from classical_network.node import ClassicalNode
 from classical_network.routing import InternetExchange
 from core.base_classes import World
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
+try:
+    import matplotlib.pyplot as plt
+    import matplotlib.patches as patches
+    _HAS_MPL = True
+except Exception:
+    plt = None
+    patches = None
+    _HAS_MPL = False
 
 from core.enums import NodeType
 from quantum_network.host import QuantumHost
@@ -11,6 +17,13 @@ from quantum_network.repeater import QuantumRepeater
 
 def visualize_network(world: World, filename="network_visualization.png"):
     """Visualizes the network topology and saves it as an image."""
+    if not _HAS_MPL:
+        # Graceful no-op if matplotlib is not installed
+        try:
+            print("Visualization skipped (matplotlib not installed). Simulation continues.")
+        except Exception:
+            pass
+        return
 
     fig, ax = plt.subplots()
     ax.set_xlim([0, world.size[0]])
