@@ -8,7 +8,7 @@ os.environ["REDIS_USERNAME"] = "default"
 os.environ["REDIS_PASSWORD"] = "aDevCXKeLli9kldGJccV15D1yS93Oyvd"
 os.environ["REDIS_DB"] = "0"
 os.environ["REDIS_SSL"] = "False"
-os.environ["GOOGLE_API_KEY"] = "AIzaSyCDR-02KzCcOwgcIGP1V4v_CiHcn3qwr1s"
+os.environ["GOOGLE_API_KEY"] = "Insert API key here"
 os.environ["OPENAI_API_KEY"] = os.environ["GOOGLE_API_KEY"]
 os.environ["LANGCHAIN_API_KEY"] = os.environ["GOOGLE_API_KEY"]
 
