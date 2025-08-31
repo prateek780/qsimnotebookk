@@ -27,14 +27,14 @@ This guide will walk you through deploying your Quantum Network Simulator to Git
 
 3. **Connect local repository to GitHub**:
    ```bash
-   git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git
+   git remote add origin https://github.com/prateek780/qsimnotebookk.git
    git branch -M main
    git push -u origin main
    ```
 
 ### Step 2: Update Binder Links
 
-Replace `YOUR_USERNAME/YOUR_REPO_NAME` in the following files with your actual GitHub details:
+Replace `prateek780/qsimnotebookk` in the following files with your actual GitHub details:
 
 1. **README.md** - Update all Binder badge URLs
 2. **setup.py** - Update the GitHub URL
@@ -42,7 +42,7 @@ Replace `YOUR_USERNAME/YOUR_REPO_NAME` in the following files with your actual G
 Example:
 ```markdown
 <!-- Before -->
-[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/YOUR_USERNAME/YOUR_REPO_NAME/main?filepath=quantum_networking_interactive.ipynb)
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/prateek780/qsimnotebookk/main?filepath=quantum_networking_interactive.ipynb)
 
 <!-- After -->
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/johndoe/quantum-simulator/main?filepath=quantum_networking_interactive.ipynb)
@@ -83,14 +83,14 @@ Your Binder links will follow this format:
 
 **Base repository link:**
 ```
-https://mybinder.org/v2/gh/YOUR_USERNAME/YOUR_REPO_NAME/main
+https://mybinder.org/v2/gh/prateek780/qsimnotebookk/main
 ```
 
 **Direct notebook links:**
 ```
-https://mybinder.org/v2/gh/YOUR_USERNAME/YOUR_REPO_NAME/main?filepath=quantum_networking_interactive.ipynb
-https://mybinder.org/v2/gh/YOUR_USERNAME/YOUR_REPO_NAME/main?filepath=quantum_networking_bb84.ipynb
-https://mybinder.org/v2/gh/YOUR_USERNAME/YOUR_REPO_NAME/main?filepath=qnetorking.ipynb
+https://mybinder.org/v2/gh/prateek780/qsimnotebookk/main?filepath=quantum_networking_interactive.ipynb
+https://mybinder.org/v2/gh/prateek780/qsimnotebookk/main?filepath=quantum_networking_bb84.ipynb
+https://mybinder.org/v2/gh/prateek780/qsimnotebookk/main?filepath=qnetorking.ipynb
 ```
 
 ## 🧪 Testing Your Deployment
@@ -106,7 +106,7 @@ jupyter notebook quantum_networking_interactive.ipynb
 
 ### Test on Binder:
 1. Go to [mybinder.org](https://mybinder.org)
-2. Enter your repository URL: `https://github.com/YOUR_USERNAME/YOUR_REPO_NAME`
+2. Enter your repository URL: `https://github.com/prateek780/qsimnotebookk`
 3. Click "Launch"
 4. Wait for build (first time takes 5-10 minutes)
 5. Test that notebooks open and run correctly
@@ -120,7 +120,7 @@ import subprocess
 import sys
 
 # Clone your simulator
-!git clone https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git quantum_sim
+!git clone https://github.com/prateek780/qsimnotebookk.git quantum_sim
 sys.path.append('./quantum_sim')
 
 # Now they can import your modules
@@ -130,7 +130,7 @@ from quantum_network.host import QuantumHost
 ### Method 2: Direct Installation
 ```python
 # Students can install as a package
-!pip install git+https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git
+!pip install git+https://github.com/prateek780/qsimnotebookk.git
 
 # Then import normally
 from quantum_network import QuantumHost, QuantumChannel
@@ -146,7 +146,7 @@ Create a template notebook that students can copy:
 
 # Setup (run this cell first)
 import sys
-!git clone https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git quantum_sim
+!git clone https://github.com/prateek780/qsimnotebookk.git quantum_sim
 sys.path.append('./quantum_sim')
 
 from quantum_network.host import QuantumHost
