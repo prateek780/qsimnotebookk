@@ -146,22 +146,29 @@ class InteractiveQuantumHost(QuantumNode):
 
     def validate_student_implementation(self):
         """Validate that student has implemented required methods"""
+        print(f"🔍 VALIDATE_STUDENT_IMPLEMENTATION called")
+        print(f"   student_implementation: {self.student_implementation}")
+        print(f"   required_methods: {self.required_methods}")
+        
         if not self.student_implementation:
+            print("❌ No student implementation provided")
             self.student_code_validated = False
             return False
         
         missing_methods = []
         for method_name in self.required_methods:
-            if not hasattr(self.student_implementation, method_name):
+            has_method = hasattr(self.student_implementation, method_name)
+            print(f"   Checking method '{method_name}': {has_method}")
+            if not has_method:
                 missing_methods.append(method_name)
         
         if missing_methods:
-            print(f" Student implementation missing methods: {missing_methods}")
+            print(f"❌ Student implementation missing methods: {missing_methods}")
             print(" Implement these methods to enable quantum protocols")
             self.student_code_validated = False
             return False
         else:
-            print(" Student implementation validated! Quantum protocols enabled.")
+            print("✅ Student implementation validated! Quantum protocols enabled.")
             self.student_code_validated = True
             return True
 
@@ -198,8 +205,13 @@ class InteractiveQuantumHost(QuantumNode):
 
     def check_student_implementation_required(self, operation_name):
         """Check if student implementation is required for this operation"""
+        print(f"🔍 CHECK_STUDENT_IMPLEMENTATION_REQUIRED for '{operation_name}'")
+        print(f"   require_student_code: {self.require_student_code}")
+        print(f"   student_code_validated: {self.student_code_validated}")
+        print(f"   has student_implementation: {self.student_implementation is not None}")
+        
         if self.require_student_code and not self.student_code_validated:
-            print(f" Cannot perform '{operation_name}' - Student implementation required!")
+            print(f"❌ Cannot perform '{operation_name}' - Student implementation required!")
             print(" VIBE CODE BB84 ALGORITHM USING THE HINTS PROVIDED TO RUN THE SIMULATION")
             print(" Steps to enable:")
             print("1. Open the Jupyter notebook (quantum_networking_interactive.ipynb)")
@@ -208,6 +220,7 @@ class InteractiveQuantumHost(QuantumNode):
             print("4. Connect your implementation to the simulation")
             print(" See the notebook for detailed implementation examples!")
             return False
+        print(f"✅ Student implementation check passed for '{operation_name}'")
         return True
 
     def add_quantum_channel(self, channel):
@@ -293,7 +306,16 @@ class InteractiveQuantumHost(QuantumNode):
             self.measurement_outcomes = []
             self.shared_bases_indices = []
             self._reconcile_sent = False
-            return self.student_implementation.bb84_send_qubits(num_qubits or default_bits)
+            
+            # Ensure the student implementation has a reference to this host
+            if not hasattr(self.student_implementation, 'host') or self.student_implementation.host is None:
+                self.student_implementation.host = self
+            
+            print(f"🎓 {self.name}: Calling student BB84 implementation...")
+            result = self.student_implementation.bb84_send_qubits(num_qubits or default_bits)
+            print(f"🎓 {self.name}: Student implementation result: {result}")
+            print(f"🎓 {self.name}: Host state after - bases: {len(self.basis_choices)}, outcomes: {len(self.measurement_outcomes)}")
+            return result
         
         # NO FALLBACKS! Students must implement this themselves
         print(" BB84 Send Qubits BLOCKED - Student implementation required!")
@@ -309,6 +331,10 @@ class InteractiveQuantumHost(QuantumNode):
             return False
             
         if self.student_implementation and hasattr(self.student_implementation, 'process_received_qbit'):
+            # Ensure the student implementation has a reference to this host
+            if not hasattr(self.student_implementation, 'host') or self.student_implementation.host is None:
+                self.student_implementation.host = self
+            
             return self.student_implementation.process_received_qbit(qbit, from_channel)
         
         # NO FALLBACKS! Students must implement this themselves
@@ -394,6 +420,13 @@ class InteractiveQuantumHost(QuantumNode):
         print(f" {self.name}: Learning statistics reset")
 
     # Override parent methods to support student implementations
+    def receive_qubit(self, qbit, from_channel):
+        """Override to add debug info"""
+        print(f"🔬 {self.name}: Received qubit from {from_channel.name}")
+        print(f"   Buffer size before: {self.qmemeory_buffer.qsize()}")
+        super().receive_qubit(qbit, from_channel)
+        print(f"   Buffer size after: {self.qmemeory_buffer.qsize()}")
+    
     def forward(self):
         """Process quantum memory buffer"""
         while not self.qmemeory_buffer.empty():
@@ -513,7 +546,12 @@ class InteractiveQuantumHost(QuantumNode):
                     )
                 except Exception:
                     pass
-                self.update_shared_bases_indices(message['data'])
+                
+                # Use student implementation if available
+                if self.student_implementation and hasattr(self.student_implementation, 'update_shared_bases_indices'):
+                    self.student_implementation.update_shared_bases_indices(message['data'])
+                else:
+                    self.update_shared_bases_indices(message['data'])
 
     def update_shared_bases_indices(self, shared_base_indices):
         """Update shared bases indices and start error estimation"""
@@ -622,6 +660,65 @@ class InteractiveQuantumHost(QuantumNode):
     def is_eavesdropper(self):
         """Check if this host is configured as an eavesdropper"""
         return len(self.quantum_channels) == 2
+    
+    def on_qkd_completed(self, shared_key: List[int]):
+        """Handle QKD completion and enable secure messaging"""
+        if not hasattr(self, 'shared_key'):
+            self.shared_key = shared_key
+            print(f"🔑 {self.name}: QKD completed! Shared key established: {len(shared_key)} bits")
+            print(f"   Key sample: {shared_key[:10]}..." if len(shared_key) > 10 else f"   Full key: {shared_key}")
+            
+            # Enable secure messaging capabilities
+            self.enable_quantum_encryption()
+    
+    def enable_quantum_encryption(self):
+        """Enable quantum encryption using the shared key"""
+        if not hasattr(self, 'shared_key') or not self.shared_key:
+            print(f"❌ {self.name}: No shared key available for encryption")
+            return False
+        
+        print(f"🔐 {self.name}: Quantum encryption enabled with {len(self.shared_key)}-bit key")
+        return True
+    
+    def quantum_encrypt_message(self, message: str) -> bytes:
+        """Encrypt message using quantum-generated key"""
+        if not hasattr(self, 'shared_key') or not self.shared_key:
+            raise ValueError("No quantum key available for encryption")
+        
+        message_bytes = message.encode('utf-8')
+        encrypted = bytearray()
+        
+        for i, byte in enumerate(message_bytes):
+            # Use quantum key bits cyclically
+            key_byte = 0
+            for j in range(8):
+                key_bit = self.shared_key[(i * 8 + j) % len(self.shared_key)]
+                key_byte |= (key_bit << (7 - j))
+            
+            encrypted.append(byte ^ key_byte)
+        
+        print(f"🔒 {self.name}: Encrypted message using quantum key")
+        return bytes(encrypted)
+    
+    def quantum_decrypt_message(self, encrypted_data: bytes) -> str:
+        """Decrypt message using quantum-generated key"""
+        if not hasattr(self, 'shared_key') or not self.shared_key:
+            raise ValueError("No quantum key available for decryption")
+        
+        decrypted = bytearray()
+        
+        for i, byte in enumerate(encrypted_data):
+            # Use quantum key bits cyclically
+            key_byte = 0
+            for j in range(8):
+                key_bit = self.shared_key[(i * 8 + j) % len(self.shared_key)]
+                key_byte |= (key_bit << (7 - j))
+            
+            decrypted.append(byte ^ key_byte)
+        
+        message = decrypted.decode('utf-8', errors='ignore')
+        print(f"🔓 {self.name}: Decrypted message using quantum key")
+        return message
 
     def __name__(self):
         return f"InteractiveQuantumHost - '{self.name}'"

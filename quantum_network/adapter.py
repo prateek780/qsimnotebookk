@@ -23,7 +23,11 @@ from core.exceptions import (
 from core.network import Network
 
 # from quantum_network.channel import QuantumChannel
-from quantum_network.host import QuantumHost
+try:
+    from quantum_network.host import QuantumHost
+except ImportError as e:
+    print(f"Warning: Could not import QuantumHost: {e}")
+    QuantumHost = None
 from quantum_network.packet import QKDTransmissionPacket
 from utils.mtu_fragmentation import fragment_packet
 from utils.simple_encryption import simple_xor_decrypt, simple_xor_encrypt

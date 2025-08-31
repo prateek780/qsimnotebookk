@@ -8,6 +8,8 @@ from core.network import Network
 from quantum_network.adapter import QuantumAdapter
 from quantum_network.channel import QuantumChannel
 from quantum_network.host import QuantumHost
+from quantum_network.interactive_host import InteractiveQuantumHost
+from quantum_network.notebook_bridge import check_simulation_readiness, NotebookIntegration
 from quantum_network.repeater import QuantumRepeater
 from utils.visualize import visualize_network
 from classical_network.presets.connection_presets import DEFAULT_PRESET
@@ -148,26 +150,62 @@ def build_quantum_1(zone):
     )
     zone.add_network(quantum_net)
 
-    # Create a quantum host
-    q_alice = QuantumHost(
-        address="q_alice",
-        location=(10, 10),
-        network=quantum_net,
-        zone=zone,
-        name="Qubit Alice",
-        send_classical_fn=lambda x: q_dave.receive_classical_data(x),
-    )
+    # Check if student implementation is available
+    readiness = check_simulation_readiness()
+    use_student_implementation = readiness.get("ready", False)
+    
+    if use_student_implementation:
+        print("🎓 Using student BB84 implementation from notebook!")
+        
+        # Load student implementation
+        integration = NotebookIntegration()
+        alice_bridge = integration.load_student_implementation()
+        dave_bridge = integration.load_student_implementation()
+        
+        # Create interactive quantum hosts with student implementation
+        q_alice = InteractiveQuantumHost(
+            address="q_alice",
+            location=(10, 10),
+            network=quantum_net,
+            zone=zone,
+            name="Qubit Alice",
+            student_implementation=alice_bridge,
+            send_classical_fn=lambda x: q_dave.receive_classical_data(x),
+        )
+        
+        q_dave = InteractiveQuantumHost(
+            address="q_dave",
+            location=(30, 30),
+            network=quantum_net,
+            zone=zone,
+            name="Qubit Dave",
+            student_implementation=dave_bridge,
+            send_classical_fn=lambda x: q_alice.receive_classical_data(x),
+        )
+        
+    else:
+        print("🔒 Using hardcoded BB84 implementation (student code not ready)")
+        
+        # Create standard quantum hosts
+        q_alice = QuantumHost(
+            address="q_alice",
+            location=(10, 10),
+            network=quantum_net,
+            zone=zone,
+            name="Qubit Alice",
+            send_classical_fn=lambda x: q_dave.receive_classical_data(x),
+        )
+        
+        q_dave = QuantumHost(
+            address="q_dave",
+            location=(30, 30),
+            network=quantum_net,
+            zone=zone,
+            name="Qubit Dave",
+            send_classical_fn=lambda x: q_alice.receive_classical_data(x),
+        )
+    
     quantum_net.add_hosts(q_alice)
-
-    # Create another classical host
-    q_dave = QuantumHost(
-        address="q_dave",
-        location=(30, 30),
-        network=quantum_net,
-        zone=zone,
-        name="Qubit Dave",
-        send_classical_fn=lambda x: q_alice.receive_classical_data(x),
-    )
     quantum_net.add_hosts(q_dave)
 
     channel_qb_rep = QuantumChannel(
@@ -181,8 +219,69 @@ def build_quantum_1(zone):
     q_dave.add_quantum_channel(channel_qb_rep)
     q_alice.add_quantum_channel(channel_qb_rep)
 
-    # q_alice.perform_qkd()
+    # Add QKD completion callbacks for secure messaging
+    def on_alice_qkd_complete(key):
+        print(f"🔑 Alice QKD completed with {len(key)}-bit key")
+        if hasattr(q_alice, 'on_qkd_completed'):
+            q_alice.on_qkd_completed(key)
+    
+    def on_dave_qkd_complete(key):
+        print(f"🔑 Dave QKD completed with {len(key)}-bit key")
+        if hasattr(q_dave, 'on_qkd_completed'):
+            q_dave.on_qkd_completed(key)
+        
+        # After both complete QKD, demonstrate secure messaging
+        if hasattr(q_alice, 'shared_key') and hasattr(q_dave, 'shared_key'):
+            demonstrate_quantum_secure_messaging(q_alice, q_dave)
+    
+    # Set QKD completion callbacks
+    if hasattr(q_alice, 'qkd_completed_fn'):
+        q_alice.qkd_completed_fn = on_alice_qkd_complete
+    if hasattr(q_dave, 'qkd_completed_fn'):
+        q_dave.qkd_completed_fn = on_dave_qkd_complete
+    
+    # Start QKD process if using student implementation
+    if use_student_implementation:
+        print("🚀 Starting BB84 protocol with student implementation...")
+        q_alice.perform_qkd()
+    
     return quantum_net, q_alice, q_dave
+
+def demonstrate_quantum_secure_messaging(alice_host, bob_host):
+    """Demonstrate secure messaging after QKD completion"""
+    print("\n🔐 QUANTUM SECURE MESSAGING DEMONSTRATION")
+    print("="*50)
+    
+    try:
+        # Test messages
+        test_messages = [
+            "Hello Bob! Quantum secured message! 🔐",
+            "The BB84 protocol worked perfectly! ⚛️", 
+            "Secret data: Password123! 🤫"
+        ]
+        
+        for i, message in enumerate(test_messages, 1):
+            print(f"\n📨 Message {i}: {message}")
+            
+            # Alice encrypts
+            if hasattr(alice_host, 'quantum_encrypt_message'):
+                encrypted = alice_host.quantum_encrypt_message(message)
+                print(f"🔒 Encrypted: {encrypted.hex()}")
+                
+                # Bob decrypts
+                if hasattr(bob_host, 'quantum_decrypt_message'):
+                    decrypted = bob_host.quantum_decrypt_message(encrypted)
+                    print(f"🔓 Decrypted: {decrypted}")
+                    
+                    if message == decrypted:
+                        print("✅ Message transmitted securely!")
+                    else:
+                        print("❌ Decryption failed!")
+        
+        print("\n🎉 Quantum secure messaging demonstration complete!")
+        
+    except Exception as e:
+        print(f"❌ Secure messaging error: {e}")
 
 
 def add_hybrid(world: World):

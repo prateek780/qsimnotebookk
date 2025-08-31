@@ -58,11 +58,9 @@ class QuantumChannel(Sobject):
             loss_prod_rand = random.random()
             if loss_prod_rand < loss_prob:
                 reason = f"Qubit lost during transmission in connection {self.name} over {length_km} km. (Loss probability: {loss_prob:.2f})"
-                self.logger.error(f"{reason} Loss probability: {loss_prob:.2f}. Random value: {loss_prod_rand:.2f}")
-                self._send_update(
-                    SimulationEventType.QUBIT_LOST,
-                    reason=reason
-                )
+                print(f"⚠️ {reason} Loss probability: {loss_prob:.2f}. Random value: {loss_prod_rand:.2f}")
+                # Skip server update to avoid Redis configuration issues
+                # self._send_update(SimulationEventType.QUBIT_LOST, reason=reason)
                 raise QubitLossError(self, qubit)
 
             # Apply noise to the qubit (using QuTiP)

@@ -93,8 +93,9 @@ app = get_app(lifespan=lifespan)
 
 if __name__ == '__main__':
     host = os.getenv("HOST", "0.0.0.0")
+    # Use Railway's PORT env var in production, fallback to 5174 for local development
     port = int(os.getenv("PORT", "5174"))
-    reload_flag = os.getenv("DEBUG", "True").lower() in ["true", "1", "t"]
+    reload_flag = os.getenv("DEBUG", "False").lower() in ["true", "1", "t"]
     
     print(f"Starting server on {host}:{port} with reload={reload_flag}")
     
