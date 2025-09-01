@@ -1,1 +1,12 @@
-{"student_implementation_ready": true, "implementation_type": "StudentImplementationBridge", "methods_implemented": ["bb84_send_qubits", "process_received_qbit", "bb84_reconcile_bases", "bb84_estimate_error_rate"]}
+{
+  "student_implementation_ready": true,
+  "student_plugin_module": "student_impl_bridge",
+  "student_plugin_class": "StudentImplementationBridge",
+  "implementation_type": "NotebookIntegration",
+  "methods_implemented": [
+    "bb84_send_qubits",
+    "process_received_qbit",
+    "bb84_reconcile_bases",
+    "bb84_estimate_error_rate"
+  ]
+}
