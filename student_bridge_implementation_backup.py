@@ -56,12 +56,6 @@ class StudentImplementationBridge:
             
         self.host = None  # will be set when attached to a simulation host
         print("🔗 Bridge created! Your BB84 implementation is now connected to the simulation.")
-        
-        # Check if we have valid student implementations
-        if hasattr(self.student_alice, 'bb84_send_qubits') and hasattr(self.student_bob, 'process_received_qbit'):
-            print("✅ Found valid student BB84 implementations!")
-        else:
-            print("⚠️ Student implementations may be incomplete - using fallback methods")
     
     def _create_dummy_host(self, name):
         """Create a dummy host if student implementations aren't available"""
@@ -79,11 +73,6 @@ class StudentImplementationBridge:
                 return []
         
         return DummyHost(name)
-    
-    def set_host(self, host):
-        """Set the simulation host for this bridge"""
-        self.host = host
-        print(f"🔗 Bridge attached to simulation host: {host.name}")
     
     def bb84_send_qubits(self, num_qubits):
         """Send qubits via the simulator using Section 3 logic."""
@@ -147,23 +136,9 @@ class StudentImplementationBridge:
                 if self.host.measurement_outcomes[idx] != bit:
                     errors += 1
         error_rate = (errors / comparisons) if comparisons > 0 else 0.0
-        
-        # SAFE: Don't access non-existent attributes
-        print(f"🔍 Error rate estimation complete: {error_rate:.1%}")
-        print("📡 Sending QKD completion signal...")
-        
-        # Send completion signal to notify adapters
+        self.host.learning_stats['error_rates'].append(error_rate)
         self.host.send_classical_data({'type': 'complete'})
-        
-        # Extract and return the shared key
-        if hasattr(self.host, 'shared_bases_indices') and self.host.shared_bases_indices:
-            shared_key = [self.host.measurement_outcomes[i] for i in self.host.shared_bases_indices if i < len(self.host.measurement_outcomes)]
-            print(f"🔑 BB84 protocol completed! Shared key: {len(shared_key)} bits")
-            
-            return error_rate
-        else:
-            print("⚠️ No shared bases indices found for key extraction")
-            return error_rate
+        return error_rate
 
 def create_student_bridge(alice_host, bob_host):
     """

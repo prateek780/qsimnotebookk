@@ -215,6 +215,7 @@ def build_quantum_1(zone):
         loss_per_km=0,
         noise_model="simple",
         name="QChannel Bob-Repeater",
+        num_bits=50,  # Add num_bits for proper BB84 completion
     )
     q_dave.add_quantum_channel(channel_qb_rep)
     q_alice.add_quantum_channel(channel_qb_rep)

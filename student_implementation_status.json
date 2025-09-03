@@ -1,8 +1,8 @@
 {
   "student_implementation_ready": true,
-  "student_plugin_module": "student_impl_bridge",
+  "student_plugin_module": "enhanced_student_bridge",
   "student_plugin_class": "StudentImplementationBridge",
-  "implementation_type": "NotebookIntegration",
+  "implementation_type": "EnhancedNotebookIntegration",
   "methods_implemented": [
     "bb84_send_qubits",
     "process_received_qbit",

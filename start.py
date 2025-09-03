@@ -46,63 +46,68 @@ async def lifespan(app: FastAPI):
     # except Exception as e:
     #     print(f"Lifespan ERROR: Failed to set Langchain environment variables: {e}")
 
+    # Skip Redis and AI agent initialization for student implementation
+    print("🚀 Starting backend for student BB84 implementation...")
+    print("   Skipping Redis and AI agent initialization for simplicity")
+    
+    # Check if student implementation is ready
     try:
-        from data.models.connection.redis import get_redis_conn
-        if get_redis_conn().ping():
-            print("Successfully connected to Redis!")
+        import json
+        import os
+        status_file = "student_implementation_status.json"
+        if os.path.exists(status_file):
+            with open(status_file, 'r') as f:
+                status = json.load(f)
+            if status.get("student_implementation_ready", False):
+                print("✅ Student BB84 implementation detected and ready!")
+            else:
+                print("⚠️ Student implementation not ready - simulation will show implementation prompts")
         else:
-            raise Exception("Failed to connect to Redis")
-
+            print("📝 No student implementation found - students need to implement BB84 first")
     except Exception as e:
-        print(f"Lifespan ERROR: Failed to connect to Redis: {e}")
-        sys.exit(1)
-
-    try:
-        from ai_agent.src.orchestration.coordinator import Coordinator
-        # Initialize the Coordinate class
-        await Coordinator().initialize_system()
-        print("Successfully initialized Coordinator")
-    except Exception as e:
-        traceback.print_exc()
-        print(f"Lifespan ERROR: Failed to initialize Coordinate class: {e}")
-        sys.exit(1)
-
-    try:
-        from data.models.connection.redis import get_redis_conn
-        from data.embedding.vector_log import VectorLogEntry
-        VectorLogEntry.create_index(get_redis_conn())
-        print("Successfully created VectorLogEntry index")
-    except Exception as e:
-        traceback.print_exc()
-        print(f"Lifespan ERROR: Failed to create VectorLogEntry index: {e}")
+        print(f"📝 Could not check student implementation status: {e}")
 
     yield
     # Shutdown
-    print("Lifespan: Disconnecting from Redis...")
-    try:
-        redis_conn = get_redis_conn()
-        if redis_conn:
-            redis_conn.close()
-            print("Lifespan: Disconnected from Redis.")
-        else:
-            print("Lifespan: No Redis connection to close.")
-    except Exception as e:
-        print(f"Lifespan ERROR: Failed to disconnect from Redis: {e}")
+    print("🛑 Backend server shutting down...")
 
 app = get_app(lifespan=lifespan)
 
 if __name__ == '__main__':
-    host = os.getenv("HOST", "0.0.0.0")
-    # Use Railway's PORT env var in production, fallback to 5174 for local development
-    port = int(os.getenv("PORT", "5174"))
-    reload_flag = os.getenv("DEBUG", "False").lower() in ["true", "1", "t"]
+    try:
+        host = os.getenv("HOST", "0.0.0.0")
+        port = int(os.getenv("PORT", "5174"))  # Backend runs on 5174
+        reload_flag = os.getenv("DEBUG", "True").lower() in ["true", "1", "t"]
+        
+        # Enable CORS for frontend
+        from fastapi.middleware.cors import CORSMiddleware
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=[
+                "http://localhost:3000",  # Frontend dev server
+                "http://127.0.0.1:3000",
+                "http://localhost:5174",  # Backend server
+                "http://127.0.0.1:5174",
+            ],
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+        
+        print(f"Starting backend server on http://{host}:{port}")
+        print("Make sure to start the frontend with 'npm run dev' in the ui directory")
+        
+        import uvicorn
+        uvicorn.run(
+            "start:app",
+            host=host,
+            port=port,
+            reload=reload_flag
+        )
+    except Exception as e:
+        print(f"Error starting server: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
     
-    print(f"Starting server on {host}:{port} with reload={reload_flag}")
-    
-    import uvicorn
-    uvicorn.run(
-        "start:app",
-        host=host,
-        port=port,
-        reload=reload_flag
-    )
+    print(f"Server started on {host}:{port} with reload={reload_flag}")

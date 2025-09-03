@@ -8,7 +8,7 @@ from config.config import get_config
 
 
 def proxy_to_live_app(app):
-    REACT_DEV_SERVER_URL = "http://localhost:5173"
+    REACT_DEV_SERVER_URL = "http://localhost:3000"
     async_client = httpx.AsyncClient(base_url=REACT_DEV_SERVER_URL)
 
     @app.api_route(
@@ -106,36 +106,55 @@ def register_blueprints(app: FastAPI):
     api_router = APIRouter(
         prefix="/api", tags=["API Root"]  # Optional: Helps organize docs
     )
-    config = get_config()
+    
+    try:
+        config = get_config()
+    except Exception as e:
+        print(f"Warning: Could not load config: {e}")
+        config = None
 
-    from server.api.topology.topology import topology_router
+    try:
+        from server.api.topology.topology import topology_router
+        api_router.include_router(topology_router)
+    except Exception as e:
+        print(f"Warning: Could not load topology router: {e}")
 
-    api_router.include_router(topology_router)
+    try:
+        from server.api.simulation.simulation import simulation_router
+        api_router.include_router(simulation_router)
+    except Exception as e:
+        print(f"Warning: Could not load simulation router: {e}")
 
-    from server.api.simulation.simulation import simulation_router
+    try:
+        from server.api.config.config_api import config_router
+        api_router.include_router(config_router)
+    except Exception as e:
+        print(f"Warning: Could not load config router: {e}")
 
-    api_router.include_router(simulation_router)
+    if config and hasattr(config, 'control_config') and config.control_config.enable_ai_feature:
+        try:
+            from server.api.agent.agent import agent_router
+            api_router.include_router(agent_router)
+        except Exception as e:
+            print(f"Warning: Could not load agent router: {e}")
 
-    from server.api.config.config_api import config_router
+    try:
+        from server.api.conversation.conversation_api import conversation_router
+        api_router.include_router(conversation_router)
+    except Exception as e:
+        print(f"Warning: Could not load conversation router: {e}")
 
-    api_router.include_router(config_router)
+    try:
+        from server.api.user.user_api import user_router
+        api_router.include_router(user_router)
+    except Exception as e:
+        print(f"Warning: Could not load user router: {e}")
 
-    if config.control_config.enable_ai_feature:
-        from server.api.agent.agent import agent_router
-
-        api_router.include_router(agent_router)
-
-    from server.api.conversation.conversation_api import conversation_router
-
-    api_router.include_router(conversation_router)
-
-    from server.api.user.user_api import user_router
-
-    api_router.include_router(user_router)
-
-    from server.api.quantum.quantum_api import quantum_router
-
-    api_router.include_router(quantum_router)
+    try:
+        from server.api.quantum.quantum_api import quantum_router
+        api_router.include_router(quantum_router)
+    except Exception as e:
+        print(f"Warning: Could not load quantum router: {e}")
 
     @api_router.get("/{rest_of_path:path}")
     async def handle_404(rest_of_path: str):

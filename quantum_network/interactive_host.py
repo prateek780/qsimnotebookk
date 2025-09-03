@@ -178,27 +178,44 @@ class InteractiveQuantumHost(QuantumNode):
         'student_plugin_module' and 'student_plugin_class'.
         The plugin class should accept the host in its constructor: Plugin(host).
         """
-        #this is just a backup dont care about it.
         try:
             import os
             import json
             status_file = "student_implementation_status.json"
             if not os.path.exists(status_file):
+                print("📄 No student implementation status file found")
                 return False
+                
             with open(status_file, "r") as f:
                 status = json.load(f)
+                
+            if not status.get("student_implementation_ready", False):
+                print("📄 Student implementation not marked as ready")
+                return False
+                
             module_name = status.get("student_plugin_module")
             class_name = status.get("student_plugin_class")
+            
             if not module_name or not class_name:
+                print("📄 Missing module or class name in status file")
                 return False
+                
+            print(f"🔌 Loading student plugin: {module_name}.{class_name}")
             module = importlib.import_module(module_name)
             plugin_cls = getattr(module, class_name, None)
+            
             if plugin_cls is None:
+                print(f"📄 Class {class_name} not found in module {module_name}")
                 return False
+                
             self.student_implementation = plugin_cls(self)
+            print(f"✅ Student plugin loaded successfully: {class_name}")
             return True
+            
         except Exception as e:
             print(f"⚠️ Failed to load student plugin: {e}")
+            import traceback
+            traceback.print_exc()
             return False
 
     # Removed hardcoded notebook adapter. Only student-provided implementations are allowed.

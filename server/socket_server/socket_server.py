@@ -38,17 +38,34 @@ class ConnectionManager:
         tasks = []
         disconnected_clients = []
 
+        # First log the message
+        try:
+            import json
+            import time
+            from datetime import datetime
+            
+            log_entry = {
+                "timestamp": datetime.now().isoformat(),
+                "data": message
+            }
+            
+            with open('socket.log', 'a') as f:
+                f.write(json.dumps(log_entry) + '\n')
+                
+            # If it's a QKD or simulation related message, also log to a separate file
+            if isinstance(message, dict) and ('type' in message or 'event_type' in message):
+                with open('simulation.log', 'a') as f:
+                    f.write(json.dumps(log_entry) + '\n')
+        except Exception as e:
+            print(f"Error logging message: {e}")
+
         for connection in self.active_connections:
             try:
                 if isinstance(message, str):
                     tasks.append(connection.send_text(message))
                 else:
-                    with open('socket.log', 'a') as f:
-                        import json
-                        f.write(json.dumps(message)+'\n')
                     tasks.append(connection.send_json(message))
             except Exception as e:
-                # Handle immediate error (less likely here, more likely during await gather)
                 print(f"Error preparing broadcast for {connection.client}: {e}")
                 disconnected_clients.append(connection)  # Mark for removal
 

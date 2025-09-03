@@ -1,10 +1,7 @@
 import random
 import time
 from typing import Any, Callable, List, Tuple
-try:
-    import qutip as qt
-except ImportError:
-    qt = None
+import qutip as qt
 from core.base_classes import World, Zone
 from core.enums import NodeType, SimulationEventType
 from core.exceptions import QuantumChannelDoesNotExists
@@ -34,6 +31,8 @@ class QuantumHost(QuantumNode):
         self.basis_choices = []
         self.measurement_outcomes = []
         self.num_bits = num_bits
+        self.qkd_in_progress = False  # Track if QKD is currently in progress
+        self.shared_bases_indices = []
         
         if send_classical_fn:
             self.send_classical_data = send_classical_fn
@@ -48,6 +47,16 @@ class QuantumHost(QuantumNode):
         for chan in self.quantum_channels:
             if (chan.node_1 == self and chan.node_2 == to_host) or (chan.node_2 == self and chan.node_1 == to_host):
                 return chan
+
+    def get_channel(self, to_host=None):
+        """Get quantum channel to specified host or first available channel"""
+        if to_host is None:
+            return self.quantum_channels[0] if self.quantum_channels else None
+        
+        for chan in self.quantum_channels:
+            if (chan.node_1 == self and chan.node_2 == to_host) or (chan.node_2 == self and chan.node_1 == to_host):
+                return chan
+        return None
 
     def forward(self):
         while not self.qmemeory_buffer.empty():
@@ -76,10 +85,6 @@ class QuantumHost(QuantumNode):
 
     def prepare_qubit(self, basis, bit):
         """Prepares a qubit in the given basis and bit value using QuTiP."""
-        if qt is None:
-            # Fallback representation when QuTiP is not available
-            return f"|{bit}⟩" if basis == "Z" else ("|+⟩" if bit == 0 else "|-⟩")
-            
         if basis == "Z":
             if bit == 0:
                 qubit = qt.basis(2, 0)  # |0>
@@ -94,10 +99,6 @@ class QuantumHost(QuantumNode):
 
     def measure_qubit(self, qubit, basis):
         """Measures the qubit in the given basis using QuTiP."""
-        if qt is None or isinstance(qubit, str):
-            # Fallback measurement for string representations or when QuTiP unavailable
-            return random.choice([0, 1])
-            
         if basis == "Z":
             # Measurement in the computational basis
             projector0 = qt.ket2dm(qt.basis(2, 0))  # Projector onto |0>
@@ -139,36 +140,89 @@ class QuantumHost(QuantumNode):
         })
         
     def receive_classical_data(self, message):
+        """Handle classical messages during QKD protocol."""
         self.logger.debug(f"Received Classical Data at host {self}. Data => {message}")
-        if message["type"] == "reconcile_bases":
-            self.bb84_reconcile_bases(message["data"])
-        elif message["type"] == "estimate_error_rate":
-            self.bb84_estimate_error_rate(message["data"])
-        elif message["type"] == "complete":
-            raw_key = self.bb84_extract_key()
-            if self.qkd_completed_fn:
-                self.qkd_completed_fn(raw_key)
-        elif message['type'] == 'shared_bases_indices':
-            self.update_shared_bases_indices(message['data'])
+        
+        if not isinstance(message, dict):
+            self.logger.error(f"Invalid message format received: {message}")
+            return
             
-        self._send_update(SimulationEventType.DATA_RECEIVED, message=message)
+        msg_type = message.get("type", "unknown")
+        self.logger.info(f"Processing message type: {msg_type}")
+        
+        try:
+            if msg_type == "reconcile_bases":
+                self.bb84_reconcile_bases(message["data"])
+                self._send_update(
+                    SimulationEventType.INFO,
+                    data=dict(
+                        type="qkd_progress",
+                        message=f"Reconciling bases at {self.name}"
+                    )
+                )
+                
+            elif msg_type == "estimate_error_rate":
+                self.bb84_estimate_error_rate(message["data"])
+                self._send_update(
+                    SimulationEventType.INFO,
+                    data=dict(
+                        type="qkd_progress",
+                        message=f"Estimating error rate at {self.name}"
+                    )
+                )
+                
+            elif msg_type == "complete":
+                self.logger.info("QKD process completing, extracting final key")
+                raw_key = self.bb84_extract_key()
+                if self.qkd_completed_fn:
+                    self.qkd_completed_fn(raw_key)
+                self.reset_qkd_state()  # Reset state after successful completion
+                self._send_update(
+                    SimulationEventType.INFO,
+                    data=dict(
+                        type="qkd_complete",
+                        message=f"QKD completed successfully at {self.name}"
+                    )
+                )
+                
+            elif msg_type == "shared_bases_indices":
+                self.update_shared_bases_indices(message["data"])
+                self._send_update(
+                    SimulationEventType.INFO,
+                    data=dict(
+                        type="qkd_progress",
+                        message=f"Processing shared bases indices at {self.name}"
+                    )
+                )
+            
+            self._send_update(SimulationEventType.DATA_RECEIVED, message=message)
+            
+        except Exception as e:
+            self.logger.error(f"Error processing message: {str(e)}")
+            self.reset_qkd_state()  # Reset state on error
             
     def update_shared_bases_indices(self, shared_base_indices):
+        """Update shared bases indices and initiate error rate estimation."""
         self.shared_bases_indices = shared_base_indices
+        self.logger.info(f"Received {len(shared_base_indices)} shared bases indices")
         
-        # Random number (Max value can be 25% of bits)
-        random_bit_number = random.randrange(2, self.num_bits // 4)
-        random_error_calculation_bit = []
-        for _ in range(random_bit_number):
-            random_index = random.choice(self.measurement_outcomes)
-            random_error_calculation_bit.append((self.measurement_outcomes[random_index], random_index))
+        # Choose random bits for error estimation (up to 25% of matching bases)
+        random_bit_number = min(len(shared_base_indices) // 4, 
+                              max(2, self.num_bits // 4))
         
-        self.send_classical_data(
-            {
-                'type': 'estimate_error_rate',
-                'data': random_error_calculation_bit
-            }
-        )
+        # Select random indices from shared bases for error checking
+        random_indices = random.sample(shared_base_indices, random_bit_number)
+        random_error_calculation_bit = [
+            (self.measurement_outcomes[i], i) for i in random_indices
+        ]
+        
+        self.logger.info(f"Selected {len(random_error_calculation_bit)} bits for error estimation")
+        
+        # Send bits for error rate estimation
+        self.send_classical_data({
+            'type': 'estimate_error_rate',
+            'data': random_error_calculation_bit
+        })
         
     def bb84_send_qubits(self):
         """Sends a sequence of qubits for the BB84 protocol."""
@@ -215,19 +269,25 @@ class QuantumHost(QuantumNode):
                 num_errors += 1
         error_rate = num_errors / len(their_bits_sample) if len(their_bits_sample) > 0 else 0
 
-        # Send error rate to destination host (classical communication)
-        # self.send_classical_data({"type": "error_rate", "data": error_rate})
-
-        # return error_rate
+        print(f"🔍 Error rate estimation: {error_rate:.1%} ({num_errors}/{len(their_bits_sample)} errors)")
         
-        # Decive if error_rate > threashold, raise error and retry otherwise, send raw
+        # Send completion signal to notify adapters
         self.send_classical_data({
             'type': 'complete'
         })
         
+        # Extract the final shared key
         raw_key = self.bb84_extract_key()
+        
+        # Mark QKD as completed
+        self.qkd_in_progress = False
+        
+        # Call the completion callback if available
         if self.qkd_completed_fn:
             self.qkd_completed_fn(raw_key)
+            
+        print(f"🔑 QKD completed! Shared key: {len(raw_key)} bits")
+        return error_rate
         
 
     def bb84_extract_key(self):
@@ -236,8 +296,37 @@ class QuantumHost(QuantumNode):
         return shared_key
     
     def perform_qkd(self):
-        self.bb84_send_qubits()
+        """Initiate the BB84 QKD protocol if not already in progress."""
+        if self.qkd_in_progress:
+            self.logger.warning("QKD already in progress, skipping new request")
+            return
+            
+        self.logger.info("Starting BB84 QKD protocol")
+        self.qkd_in_progress = True
+        self.basis_choices = []
+        self.measurement_outcomes = []
+        self.shared_bases_indices = []
         
+        try:
+            # Start the BB84 protocol by sending qubits
+            self.bb84_send_qubits()
+            
+            # The rest of the protocol (reconciliation, error checking) 
+            # will be handled by the quantum channel and classical communication
+            # This method just initiates the process
+            
+        except Exception as e:
+            self.logger.error(f"Error during QKD: {str(e)}")
+            self.qkd_in_progress = False
+            raise
+
+    def reset_qkd_state(self):
+        """Reset the QKD state after completion or failure."""
+        self.qkd_in_progress = False
+        self.basis_choices = []
+        self.measurement_outcomes = []
+        self.shared_bases_indices = []
+        self.logger.info("QKD state reset")
 
     def __name__(self):
         return f"QuantumHost - '{self.name}'"

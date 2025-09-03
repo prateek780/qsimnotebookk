@@ -127,12 +127,17 @@ class ClassicalHost(ClassicalNode):
     def receive_data(self, packet:ClassicDataPacket):
         self._send_update(SimulationEventType.DATA_RECEIVED, data=packet.data)
 
-        print(f"Is Destination: {packet.destination_address}, Name {self}, Is Destination: {packet.destination_address == self}")
-        if packet.destination_address == self or packet.to_address == self:
+        # Check if this host is the final destination
+        is_final_destination = (packet.destination_address == self or 
+                              (packet.destination_address is None and packet.to_address == self))
+        
+        if is_final_destination:
             self._send_update(
                 SimulationEventType.CLASSICAL_DATA_RECEIVED,
                 data=packet.data, destination=self.name
             )
+            # Log successful delivery
+            self.logger.info(f"Message '{packet.data}' successfully received at {self.name}")
 
     def __name__(self):
         return f"Host - '{self.name}'"

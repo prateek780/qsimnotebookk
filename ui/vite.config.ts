@@ -12,17 +12,22 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5173,
+    port: 3000,  // Frontend will run on port 3000
     proxy: {
       '/api': {
-        target: 'http://localhost:5174',
+        target: 'http://localhost:5173',  // Backend runs on 5173
         changeOrigin: true,
+        secure: false,
+        ws: true
+      },
+      '/ws': {
+        target: 'ws://localhost:5173',
         ws: true
       }
     }
   },
   define: {
-    'process.env.VITE_API_URL': JSON.stringify(process.env.VITE_API_URL || 'http://localhost:5174')
+    'process.env.VITE_API_URL': JSON.stringify(process.env.VITE_API_URL || 'http://localhost:5173')
   },
   build: {
     outDir: 'dist'
