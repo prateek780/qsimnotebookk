@@ -192,31 +192,7 @@ class StudentQuantumHost:
         
         return error_rate
 
-def encode_qubit(bit, basis):
-    """Return a qubit prepared in basis ('Z' or 'X') encoding the given bit."""
-    b = 'Z' if basis in ('Z', 0) else 'X'
-    if qt is not None:
-        if b == 'Z':
-            return qt.basis(2, bit)
-        return (qt.basis(2, 0) + (1 if bit == 0 else -1) * qt.basis(2, 1)).unit()
-    return (b, bit)
-
-def measure_qubit(qubit, alice_basis, bob_basis):
-    """Measure qubit in bob_basis ('Z'/'X' or 0/1)."""
-    b = 'Z' if bob_basis in ('Z', 0) else 'X'
-    if qt is not None and hasattr(qt, 'Qobj') and isinstance(qubit, qt.Qobj):
-        if b == 'Z':
-            proj0 = qt.ket2dm(qt.basis(2, 0))
-        else:
-            proj0 = qt.ket2dm((qt.basis(2, 0) + qt.basis(2, 1)).unit())
-        p0 = qt.expect(proj0, qubit)
-        return 0 if random.random() < p0 else 1
-    if isinstance(qubit, tuple) and len(qubit) == 2:
-        qb_basis, bit = qubit
-        qb_b = 'Z' if qb_basis in ('Z', 0) else 'X'
-        if qb_b == b:
-            return bit
-    return random.choice([0, 1])
+# Note: Using student's prepare_quantum_state and measure_quantum_state functions instead
 
 class EnhancedStudentImplementationBridge:
     """Enhanced bridge with proper QKD phase management and completion signals"""
@@ -233,7 +209,7 @@ class EnhancedStudentImplementationBridge:
         self.host = None  # CRITICAL: Will be set when attached to simulation host
         self.qkd_phase = "idle"  # Track QKD phase: idle -> sending -> receiving -> reconciling -> error_checking -> complete
         self.bits_received = 0
-        self.expected_bits = 16  # Match the channel configuration
+        self.expected_bits = 0  # Will be set when bb84_send_qubits is called
         print("Enhanced Bridge created! BB84 implementation with completion signals enabled.")
         print("STUDENT'S BB84 IMPLEMENTATION LOADED!")
         print("Using StudentQuantumHost class from notebook - no hardcoded algorithms!")
@@ -242,51 +218,20 @@ class EnhancedStudentImplementationBridge:
         """Load student implementations from the notebook or create StudentQuantumHost instances"""
         try:
             # Try to access from globals() directly (for notebook execution)
-            try:
-                import sys
-                current_frame = sys._getframe(1)
-                global_vars = current_frame.f_globals
-                if 'alice' in global_vars and 'bob' in global_vars:
-                    alice = global_vars['alice']
-                    bob = global_vars['bob']
-                    print("Loaded student implementations from frame globals")
-                    print(f"   Alice type: {type(alice).__name__}")
-                    print(f"   Bob type: {type(bob).__name__}")
-                    return alice, bob
-            except Exception as e:
-                print(f"Failed to load from frame globals: {e}")
-                pass
-            
-            # Try to access global variables (for notebook execution)
-            try:
-                import builtins
-                if hasattr(builtins, 'alice') and hasattr(builtins, 'bob'):
-                    alice = getattr(builtins, 'alice')
-                    bob = getattr(builtins, 'bob')
-                    print("Loaded student implementations from global scope")
-                    print(f"   Alice type: {type(alice).__name__}")
-                    print(f"   Bob type: {type(bob).__name__}")
-                    return alice, bob
-            except Exception as e:
-                print(f"Failed to load from builtins: {e}")
-                pass
-            
-            # Try to import from the notebook's exported module
-            try:
-                from student_bb84_implementation import StudentAlice, StudentBob
-                alice = StudentAlice()
-                bob = StudentBob()
-                print("Loaded student implementations from exported module")
+            import sys
+            current_frame = sys._getframe(1)
+            global_vars = current_frame.f_globals
+            if 'alice' in global_vars and 'bob' in global_vars:
+                alice = global_vars['alice']
+                bob = global_vars['bob']
+                print("Loaded student implementations from frame globals")
+                print(f"   Alice type: {type(alice).__name__}")
+                print(f"   Bob type: {type(bob).__name__}")
                 return alice, bob
-            except ImportError as e:
-                print(f"Failed to import from student_bb84_implementation: {e}")
-                pass
-                
         except Exception as e:
-            print(f"Failed to load student implementations: {e}")
-            pass
+            print(f"Failed to load from frame globals: {e}")
         
-        # Create StudentQuantumHost instances as fallback
+        # Create StudentQuantumHost instances using student's code
         print("Creating StudentQuantumHost instances for BB84 implementation")
         print("Using student's vibe-coded BB84 implementation!")
         print("NO HARDCODED ALGORITHMS - PURE STUDENT CODE!")
@@ -306,24 +251,7 @@ class EnhancedStudentImplementationBridge:
         print("Ready to run BB84 protocol with student's implementation!")
         return alice, bob
     
-    # Note: Old hardcoded implementations removed - now using StudentQuantumHost
-    
-    def _create_dummy_host(self, name):
-        """Create a dummy host if student implementations aren't available"""
-        class DummyHost:
-            def __init__(self, name):
-                self.name = name
-                self.alice_bits = []
-                self.alice_bases = []
-                self.encoded_qubits = []
-                self.basis_choices = []
-                self.measurement_outcomes = []
-            
-            def bb84_send_qubits(self, num_qubits):
-                print(f"Using dummy implementation for {self.name}")
-                return []
-        
-        return DummyHost(name)
+    # Note: Only using StudentQuantumHost - no fallback implementations
     
     def bb84_send_qubits(self, num_qubits):
         """Send qubits via the simulator using student implementation."""
@@ -456,82 +384,52 @@ class EnhancedStudentImplementationBridge:
             
         self.bits_received += 1
         
-        # CRITICAL FIX: Use student's Bob implementation instead of hardcoded logic
-        if hasattr(self.student_bob, 'process_received_qbit'):
-            # Call the student's Bob implementation
-            result = self.student_bob.process_received_qbit(qbit, from_channel)
-            
-            # CRITICAL: Always update the host's state with Bob's results from student implementation
-            if hasattr(self.student_bob, 'basis_choices'):
-                self.host.basis_choices = list(self.student_bob.basis_choices)
-            if hasattr(self.student_bob, 'measurement_outcomes'):
-                self.host.measurement_outcomes = list(self.student_bob.measurement_outcomes)
-            
-            # Send simulation event for Bob's qubit reception - based on student's process_received_qbit
+        # Use student's Bob implementation
+        result = self.student_bob.process_received_qbit(qbit, from_channel)
+        
+        # Update the host's state with Bob's results from student implementation
+        if hasattr(self.student_bob, 'basis_choices'):
+            self.host.basis_choices = list(self.student_bob.basis_choices)
+        if hasattr(self.student_bob, 'measurement_outcomes'):
+            self.host.measurement_outcomes = list(self.student_bob.measurement_outcomes)
+        
+        # Send simulation event for Bob's qubit reception - based on student's process_received_qbit
+        if self.host and hasattr(self.host, '_send_update'):
+            from core.enums import SimulationEventType
+            print(f"Sending Bob qubit reception event: {self.bits_received}/{self.expected_bits}")
+            self.host._send_update(SimulationEventType.DATA_RECEIVED,
+                                 message=f"STUDENT BOB: Received qubit {self.bits_received}/{self.expected_bits} using YOUR process_received_qbit() method from notebook!",
+                                 student_method="process_received_qbit",
+                                 qubits_received=self.bits_received,
+                                 total_expected=self.expected_bits,
+                                 measurement_basis=self.student_bob.basis_choices[-1] if self.student_bob.basis_choices else None,
+                                 measurement_result=self.student_bob.measurement_outcomes[-1] if self.student_bob.measurement_outcomes else None,
+                                 implementation_source="student_notebook_code",
+                                 student_class="StudentQuantumHost")
+        
+        # Progress indicator
+        if self.bits_received % 10 == 0:
+            print(f"   Received {self.bits_received}/{self.expected_bits} qubits")
+            print(f"   Bob's measurements so far: {len(self.host.measurement_outcomes)}")
+        
+        # Check if we've received all expected qubits
+        if self.bits_received >= self.expected_bits:
+            print(f"Received all {self.bits_received} qubits, starting reconciliation...")
+            print(f"   Bob's final measurements: {len(self.host.measurement_outcomes)}")
+            print(f"   Bob's final bases: {len(self.host.basis_choices)}")
+            # Send simulation event for reconciliation start - based on student's bb84_reconcile_bases
             if self.host and hasattr(self.host, '_send_update'):
                 from core.enums import SimulationEventType
-                print(f"Sending Bob qubit reception event: {self.bits_received}/{self.expected_bits}")
-                self.host._send_update(SimulationEventType.DATA_RECEIVED,
-                                     message=f"STUDENT BOB: Received qubit {self.bits_received}/{self.expected_bits} using YOUR process_received_qbit() method from notebook!",
-                                     student_method="process_received_qbit",
-                                     qubits_received=self.bits_received,
-                                     total_expected=self.expected_bits,
-                                     measurement_basis=self.student_bob.basis_choices[-1] if self.student_bob.basis_choices else None,
-                                     measurement_result=self.student_bob.measurement_outcomes[-1] if self.student_bob.measurement_outcomes else None,
+                self.host._send_update(SimulationEventType.INFO, 
+                                     message=f"STUDENT BOB: Received all {self.bits_received} qubits, ready for YOUR bb84_reconcile_bases() method!",
+                                     student_method="bb84_reconcile_bases",
+                                     measurements=len(self.host.measurement_outcomes),
+                                     bases=len(self.host.basis_choices),
                                      implementation_source="student_notebook_code",
                                      student_class="StudentQuantumHost")
-            
-            # Progress indicator
-            if self.bits_received % 10 == 0:
-                print(f"   Received {self.bits_received}/{self.expected_bits} qubits")
-                print(f"   Bob's measurements so far: {len(self.host.measurement_outcomes)}")
-            
-            # Check if we've received all expected qubits
-            if self.bits_received >= self.expected_bits:
-                print(f"Received all {self.bits_received} qubits, starting reconciliation...")
-                print(f"   Bob's final measurements: {len(self.host.measurement_outcomes)}")
-                print(f"   Bob's final bases: {len(self.host.basis_choices)}")
-                # Send simulation event for reconciliation start - based on student's bb84_reconcile_bases
-                if self.host and hasattr(self.host, '_send_update'):
-                    from core.enums import SimulationEventType
-                    self.host._send_update(SimulationEventType.INFO, 
-                                         message=f"STUDENT BOB: Received all {self.bits_received} qubits, ready for YOUR bb84_reconcile_bases() method!",
-                                         student_method="bb84_reconcile_bases",
-                                         measurements=len(self.host.measurement_outcomes),
-                                         bases=len(self.host.basis_choices),
-                                         implementation_source="student_notebook_code",
-                                         student_class="StudentQuantumHost")
-                self.qkd_phase = "ready_for_reconciliation"
-            
-            return result
-        else:
-            # Fallback to hardcoded logic if student implementation is missing
-            print("Student Bob implementation missing process_received_qbit, using fallback")
-            
-            # Bob chooses random basis (0=Z, 1=X)
-            bob_basis = random.choice([0, 1])
-            
-            # Infer Alice basis from our simple string encoding
-            if isinstance(qbit, str):
-                alice_basis = 0 if qbit in ('|0⟩', '|1⟩') else 1
-            else:
-                # Default to random if unknown format
-                alice_basis = random.choice([0, 1])
-            
-            outcome = measure_qubit(qbit, alice_basis, bob_basis)
-            self.host.basis_choices.append(bob_basis)
-            self.host.measurement_outcomes.append(outcome)
-            
-            # Progress indicator
-            if self.bits_received % 10 == 0:
-                print(f"   Received {self.bits_received}/{self.expected_bits} qubits")
-            
-            # Check if we've received all expected qubits
-            if self.bits_received >= self.expected_bits:
-                print(f"Received all {self.bits_received} qubits, starting reconciliation...")
-                self.qkd_phase = "ready_for_reconciliation"
-            
-            return True
+            self.qkd_phase = "ready_for_reconciliation"
+        
+        return result
         
     def bb84_reconcile_bases(self, their_bases):
         """Find matching bases and trigger error rate estimation."""
@@ -542,96 +440,72 @@ class EnhancedStudentImplementationBridge:
         print("Starting basis reconciliation...")
         print(f"Bob: bb84_reconcile_bases called with {len(their_bases)} bases from Alice")
         
-        # CRITICAL FIX: Use student's Bob implementation for reconciliation
-        if hasattr(self.student_bob, 'bb84_reconcile_bases'):
-            print(f"Using YOUR Bob implementation for reconciliation...")
-            print(f"   Bob's bases: {len(self.host.basis_choices)}")
-            print(f"   Alice's bases: {len(their_bases)}")
-            
-            # Send UI event for reconciliation start
-            if self.host and hasattr(self.host, '_send_update'):
-                from core.enums import SimulationEventType
-                self.host._send_update(SimulationEventType.INFO, 
-                                     message="STUDENT BOB: Starting reconciliation process using YOUR bb84_reconcile_bases() method from notebook!",
-                                     student_method="bb84_reconcile_bases",
-                                     alice_bases=len(their_bases),
-                                     bob_bases=len(self.host.basis_choices),
-                                     implementation_source="student_notebook_code",
-                                     student_class="StudentQuantumHost")
-            
-            # Call the student's Bob implementation
-            print(f"Calling student Bob's bb84_reconcile_bases method...")
-            result = self.student_bob.bb84_reconcile_bases(their_bases)
-            print(f"Student Bob reconciliation result: {result}")
-            
-            # Update the host's state with Bob's results from student implementation
-            if hasattr(self.student_bob, 'shared_bases_indices') and hasattr(self.student_bob, 'shared_bits'):
-                self.host.shared_bases_indices = list(self.student_bob.shared_bases_indices)
-                shared_bits = list(self.student_bob.shared_bits)
-                print(f"Bob found {len(self.host.shared_bases_indices)} shared bases using YOUR code!")
-                # Send simulation event for reconciliation success - based on student's bb84_reconcile_bases results
-                if self.host and hasattr(self.host, '_send_update'):
-                    from core.enums import SimulationEventType
-                    efficiency = (len(self.host.shared_bases_indices) / len(their_bases) * 100) if their_bases else 0
-                    print(f"Sending Bob reconciliation event: {len(self.host.shared_bases_indices)} shared bases")
-                    self.host._send_update(SimulationEventType.INFO, 
-                                         message=f"STUDENT BOB bb84_reconcile_bases(): Found {len(self.host.shared_bases_indices)} matching bases out of {len(their_bases)} (Efficiency: {efficiency:.1f}%) using YOUR code!",
-                                         student_method="bb84_reconcile_bases",
-                                         shared_bases=len(self.host.shared_bases_indices),
-                                         total_bases=len(their_bases),
-                                         efficiency=efficiency,
-                                         implementation_source="student_notebook_code",
-                                         student_class="StudentQuantumHost")
-            else:
-                # Fallback: extract from student's measurement outcomes
-                shared_indices = []
-                for i, (my_basis, their_basis) in enumerate(zip(self.host.basis_choices, their_bases)):
-                    if my_basis == their_basis and i < len(self.host.measurement_outcomes):
-                        shared_indices.append(i)
-                self.host.shared_bases_indices = shared_indices
-                shared_bits = [self.host.measurement_outcomes[i] for i in shared_indices]
-                print(f"Bob found {len(shared_indices)} shared bases using fallback logic")
-            
-            # Notify peer about shared indices
-            self.host.send_classical_data({
-                'type': 'shared_bases_indices', 
-                'data': self.host.shared_bases_indices
-            })
-            
-            # Send UI event for reconciliation completion
+        # Use student's Bob implementation for reconciliation
+        print(f"Using YOUR Bob implementation for reconciliation...")
+        print(f"   Bob's bases: {len(self.host.basis_choices)}")
+        print(f"   Alice's bases: {len(their_bases)}")
+        
+        # Send UI event for reconciliation start
+        if self.host and hasattr(self.host, '_send_update'):
+            from core.enums import SimulationEventType
+            self.host._send_update(SimulationEventType.INFO, 
+                                 message="STUDENT BOB: Starting reconciliation process using YOUR bb84_reconcile_bases() method from notebook!",
+                                 student_method="bb84_reconcile_bases",
+                                 alice_bases=len(their_bases),
+                                 bob_bases=len(self.host.basis_choices),
+                                 implementation_source="student_notebook_code",
+                                 student_class="StudentQuantumHost")
+        
+        # Call the student's Bob implementation
+        print(f"Calling student Bob's bb84_reconcile_bases method...")
+        result = self.student_bob.bb84_reconcile_bases(their_bases)
+        print(f"Student Bob reconciliation result: {result}")
+        
+        # Update the host's state with Bob's results from student implementation
+        if hasattr(self.student_bob, 'shared_bases_indices') and hasattr(self.student_bob, 'shared_bits'):
+            self.host.shared_bases_indices = list(self.student_bob.shared_bases_indices)
+            shared_bits = list(self.student_bob.shared_bits)
+            print(f"Bob found {len(self.host.shared_bases_indices)} shared bases using YOUR code!")
+            # Send simulation event for reconciliation success - based on student's bb84_reconcile_bases results
             if self.host and hasattr(self.host, '_send_update'):
                 from core.enums import SimulationEventType
                 efficiency = (len(self.host.shared_bases_indices) / len(their_bases) * 100) if their_bases else 0
+                print(f"Sending Bob reconciliation event: {len(self.host.shared_bases_indices)} shared bases")
                 self.host._send_update(SimulationEventType.INFO, 
-                                     message=f"Student Bob: Reconciliation completed - found {len(self.host.shared_bases_indices)} shared bases",
+                                     message=f"STUDENT BOB bb84_reconcile_bases(): Found {len(self.host.shared_bases_indices)} matching bases out of {len(their_bases)} (Efficiency: {efficiency:.1f}%) using YOUR code!",
                                      student_method="bb84_reconcile_bases",
                                      shared_bases=len(self.host.shared_bases_indices),
-                                     efficiency=efficiency)
-            
-            return self.host.shared_bases_indices, shared_bits
+                                     total_bases=len(their_bases),
+                                     efficiency=efficiency,
+                                     implementation_source="student_notebook_code",
+                                     student_class="StudentQuantumHost")
         else:
-            # Fallback to hardcoded logic if student implementation is missing
-            print("Student Bob implementation missing bb84_reconcile_bases, using fallback")
-            
-            # Find shared indices where bases match
+            # Extract from student's measurement outcomes
             shared_indices = []
             for i, (my_basis, their_basis) in enumerate(zip(self.host.basis_choices, their_bases)):
                 if my_basis == their_basis and i < len(self.host.measurement_outcomes):
                     shared_indices.append(i)
-            
             self.host.shared_bases_indices = shared_indices
             shared_bits = [self.host.measurement_outcomes[i] for i in shared_indices]
-            
-            print(f"Reconciliation complete: {len(shared_indices)} shared bases out of {len(their_bases)} total")
-            print(f"   Efficiency: {len(shared_indices)/len(their_bases)*100:.1f}%")
-            
-            # Notify peer about shared indices
-            self.host.send_classical_data({
-                'type': 'shared_bases_indices', 
-                'data': shared_indices
-            })
-            
-            return shared_indices, shared_bits
+            print(f"Bob found {len(shared_indices)} shared bases using student logic")
+        
+        # Notify peer about shared indices
+        self.host.send_classical_data({
+            'type': 'shared_bases_indices', 
+            'data': self.host.shared_bases_indices
+        })
+        
+        # Send UI event for reconciliation completion
+        if self.host and hasattr(self.host, '_send_update'):
+            from core.enums import SimulationEventType
+            efficiency = (len(self.host.shared_bases_indices) / len(their_bases) * 100) if their_bases else 0
+            self.host._send_update(SimulationEventType.INFO, 
+                                 message=f"Student Bob: Reconciliation completed - found {len(self.host.shared_bases_indices)} shared bases",
+                                 student_method="bb84_reconcile_bases",
+                                 shared_bases=len(self.host.shared_bases_indices),
+                                 efficiency=efficiency)
+        
+        return self.host.shared_bases_indices, shared_bits
     
     def bb84_estimate_error_rate(self, their_bits_sample):
         """Compute error rate and CRITICAL: send completion signal."""
@@ -642,86 +516,58 @@ class EnhancedStudentImplementationBridge:
         print("Starting error rate estimation...")
         print(f"Bob: bb84_estimate_error_rate called with {len(their_bits_sample)} bits from Alice")
         
-        # CRITICAL FIX: Use student's Bob implementation for error rate estimation
-        if hasattr(self.student_bob, 'bb84_estimate_error_rate'):
-            print(f"Using YOUR Bob implementation for error rate estimation...")
-            print(f"   Sample size: {len(their_bits_sample)} bits")
-            
-            # Send UI event for error estimation start
-            if self.host and hasattr(self.host, '_send_update'):
-                from core.enums import SimulationEventType
-                self.host._send_update(SimulationEventType.INFO, 
-                                     message="STUDENT BOB: Starting error rate estimation using YOUR bb84_estimate_error_rate() method from notebook!",
-                                     student_method="bb84_estimate_error_rate",
-                                     sample_size=len(their_bits_sample),
-                                     implementation_source="student_notebook_code",
-                                     student_class="StudentQuantumHost")
-            
-            # Call the student's Bob implementation
-            print(f"Calling student Bob's bb84_estimate_error_rate method...")
-            error_rate = self.student_bob.bb84_estimate_error_rate(their_bits_sample)
-            print(f"Student Bob error estimation result: {error_rate}")
+        # Use student's Bob implementation for error rate estimation
+        print(f"Using YOUR Bob implementation for error rate estimation...")
+        print(f"   Sample size: {len(their_bits_sample)} bits")
+        
+        # Send UI event for error estimation start
+        if self.host and hasattr(self.host, '_send_update'):
+            from core.enums import SimulationEventType
+            self.host._send_update(SimulationEventType.INFO, 
+                                 message="STUDENT BOB: Starting error rate estimation using YOUR bb84_estimate_error_rate() method from notebook!",
+                                 student_method="bb84_estimate_error_rate",
+                                 sample_size=len(their_bits_sample),
+                                 implementation_source="student_notebook_code",
+                                 student_class="StudentQuantumHost")
+        
+        # Call the student's Bob implementation
+        print(f"Calling student Bob's bb84_estimate_error_rate method...")
+        error_rate = self.student_bob.bb84_estimate_error_rate(their_bits_sample)
+        print(f"Student Bob error estimation result: {error_rate}")
 
-            print(f"YOUR Bob error rate estimation complete: {error_rate:.1%}")
-            
-            # Send simulation event for error rate estimation - based on student's bb84_estimate_error_rate
-            if self.host and hasattr(self.host, '_send_update'):
-                from core.enums import SimulationEventType
-                errors = sum(1 for bit, idx in their_bits_sample if 0 <= idx < len(self.host.measurement_outcomes) and self.host.measurement_outcomes[idx] != bit)
-                comparisons = len([bit for bit, idx in their_bits_sample if 0 <= idx < len(self.host.measurement_outcomes)])
-                print(f"Sending Bob error estimation event: {error_rate:.1%} error rate")
-                self.host._send_update(SimulationEventType.INFO, 
-                                     message=f"STUDENT BOB bb84_estimate_error_rate(): {error_rate:.1%} error rate ({errors}/{comparisons} errors) using YOUR implementation from notebook!",
-                                     student_method="bb84_estimate_error_rate",
-                                     error_rate=error_rate,
-                                     errors=errors,
-                                     comparisons=comparisons,
-                                     sample_size=len(their_bits_sample),
-                                     implementation_source="student_notebook_code",
-                                     student_class="StudentQuantumHost")
-            
-            # Store learning stats
-            if hasattr(self.host, 'learning_stats'):
-                self.host.learning_stats['error_rates'].append(error_rate)
-            
-            # CRITICAL FIX: Send completion signal to notify adapters
-            print("Sending QKD completion signal...")
-            # Send simulation event for QKD completion
-            if self.host and hasattr(self.host, '_send_update'):
-                from core.enums import SimulationEventType
-                self.host._send_update(SimulationEventType.SHARED_KEY_GENERATED, 
-                                     message="BB84 QKD protocol completed successfully",
-                                     error_rate=error_rate,
-                                     shared_bases=len(self.host.shared_bases_indices))
-            
-            # Send completion message to trigger final key extraction
-            self.host.send_classical_data({'type': 'complete'})
-        else:
-            # Fallback to hardcoded logic if student implementation is missing
-            print("Student Bob implementation missing bb84_estimate_error_rate, using fallback")
-            
-            errors = 0
-            comparisons = 0
-            
-            for bit, idx in their_bits_sample:
-                if 0 <= idx < len(self.host.measurement_outcomes):
-                    comparisons += 1
-                    if self.host.measurement_outcomes[idx] != bit:
-                        errors += 1
-            
-            error_rate = (errors / comparisons) if comparisons > 0 else 0.0
-            
-            print(f"Error rate estimation complete:")
-            print(f"   Sampled {comparisons} bits")
-            print(f"   Found {errors} errors")
-            print(f"   Error rate: {error_rate:.1%}")
-            
-            # Store learning stats
-            if hasattr(self.host, 'learning_stats'):
-                self.host.learning_stats['error_rates'].append(error_rate)
-            
-            # CRITICAL FIX: Send completion signal to notify adapters
-            print("Sending QKD completion signal...")
+        print(f"YOUR Bob error rate estimation complete: {error_rate:.1%}")
+        
+        # Send simulation event for error rate estimation - based on student's bb84_estimate_error_rate
+        if self.host and hasattr(self.host, '_send_update'):
+            from core.enums import SimulationEventType
+            errors = sum(1 for bit, idx in their_bits_sample if 0 <= idx < len(self.host.measurement_outcomes) and self.host.measurement_outcomes[idx] != bit)
+            comparisons = len([bit for bit, idx in their_bits_sample if 0 <= idx < len(self.host.measurement_outcomes)])
+            print(f"Sending Bob error estimation event: {error_rate:.1%} error rate")
+            self.host._send_update(SimulationEventType.INFO, 
+                                 message=f"STUDENT BOB bb84_estimate_error_rate(): {error_rate:.1%} error rate ({errors}/{comparisons} errors) using YOUR implementation from notebook!",
+                                 student_method="bb84_estimate_error_rate",
+                                 error_rate=error_rate,
+                                 errors=errors,
+                                 comparisons=comparisons,
+                                 sample_size=len(their_bits_sample),
+                                 implementation_source="student_notebook_code",
+                                 student_class="StudentQuantumHost")
+        
+        # Store learning stats
+        if hasattr(self.host, 'learning_stats'):
+            self.host.learning_stats['error_rates'].append(error_rate)
+        
+        # Send completion signal to notify adapters
+        print("Sending QKD completion signal...")
+        # Send simulation event for QKD completion
+        if self.host and hasattr(self.host, '_send_update'):
+            from core.enums import SimulationEventType
+            self.host._send_update(SimulationEventType.SHARED_KEY_GENERATED, 
+                                 message="BB84 QKD protocol completed successfully",
+                                 error_rate=error_rate,
+                                 shared_bases=len(self.host.shared_bases_indices))
+        
+        # Send completion message to trigger final key extraction
         self.host.send_classical_data({'type': 'complete'})
         
         # Update phase to complete
