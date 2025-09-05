@@ -51,13 +51,18 @@ class LogEntryModel(JsonModel):
         global_key_prefix = "network-sim"
         model_key_prefix = "log"
         try:
-            database = get_redis_conn()
+            database = None
         except Exception:
             database = None
 
 
 def add_log_entry(log_data: Dict[str, Any]) -> LogEntryModel | None:
     """Add a log entry to Redis"""
+    # Check if Redis logging is disabled
+    import os
+    if os.environ.get("DISABLE_REDIS_LOGGING", "0") == "1":
+        return None
+    
     # Ensure we have a connection
     try:
         get_redis_conn()
@@ -73,13 +78,16 @@ def add_log_entry(log_data: Dict[str, Any]) -> LogEntryModel | None:
     # Create LogEntry instance
     log_entry = LogEntryModel(**log_data)
 
-    # Save to Redis
+    # Save to Redis with memory error handling
     try:
         log_entry.save()
-    except Exception:
+        return log_entry
+    except Exception as e:
+        # If Redis is out of memory, don't crash - just return None
+        if "OutOfMemoryError" in str(e) or "maxmemory" in str(e):
+            print("⚠️ Redis out of memory, skipping log storage")
+            return None
         return None
-
-    return log_entry
 
 
 def get_log_entry(primary_key: str) -> Optional[LogEntryModel]:

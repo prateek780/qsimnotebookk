@@ -46,6 +46,15 @@ export function convertEventToLog(eventData: any): LogI {
                     message = `Sent data.`;
                     if (eventDetails?.destination?.name && eventDetails.data !== undefined) {
                         message = `Sent data to ${eventDetails.destination.name}: "${sliceData(eventDetails.data)}".`;
+                    } else if (eventDetails?.message) {
+                        // Handle student BB84 qubit transmission logs
+                        message = eventDetails.message;
+                        if (eventDetails.qubits_sent) {
+                            message += ` (${eventDetails.qubits_sent} qubits)`;
+                        }
+                        if (eventDetails.student_qubits) {
+                            message += ` - Sample: [${eventDetails.student_qubits.slice(0, 3).join(', ')}...]`;
+                        }
                     }
                     break;
 
@@ -99,12 +108,34 @@ export function convertEventToLog(eventData: any): LogI {
                     message = `Initiated QKD.`;
                     if (eventDetails?.with_adapter?.name) {
                         message = `Initiated QKD with ${eventDetails.with_adapter.name}.`;
+                    } else if (eventDetails?.message) {
+                        // Handle student BB84 implementation logs
+                        message = eventDetails.message;
+                        if (eventDetails.protocol) {
+                            message += ` (${eventDetails.protocol})`;
+                        }
+                        if (eventDetails.num_qubits) {
+                            message += ` - ${eventDetails.num_qubits} qubits`;
+                        }
                     }
                     break;
 
                 case 'shared_key_generated':
                     level = LogLevel.STORY;
-                    message = `${eventDetails.key.length} bit shared key generated for encryption: ${sliceData(eventDetails.key)}`;
+                    if (eventDetails?.message) {
+                        // Handle student BB84 completion logs
+                        message = eventDetails.message;
+                        if (eventDetails.error_rate !== undefined) {
+                            message += ` (${(eventDetails.error_rate * 100).toFixed(1)}% error rate)`;
+                        }
+                        if (eventDetails.shared_bases !== undefined) {
+                            message += ` (${eventDetails.shared_bases} shared bases)`;
+                        }
+                    } else if (eventDetails?.key?.length) {
+                        message = `${eventDetails.key.length} bit shared key generated for encryption: ${sliceData(eventDetails.key)}`;
+                    } else {
+                        message = 'Shared key generated.';
+                    }
                     break;
 
                 case 'data_encrypted':
@@ -133,6 +164,12 @@ export function convertEventToLog(eventData: any): LogI {
                             const packetType = packetTypeMatch ? packetTypeMatch[1] : 'Unknown Packet';
                             const packetFrom = packet.from || 'Unknown Sender';
                             message = `Received packet data (${packetType} from ${packetFrom})`;
+                        } else if (eventDetails.message && eventDetails.student_method) {
+                            // Handle student BB84 qubit reception logs
+                            message = eventDetails.message;
+                            if (eventDetails.student_method) {
+                                message += ` (${eventDetails.student_method})`;
+                            }
                         }
                     }
                     break;
@@ -202,6 +239,34 @@ export function convertEventToLog(eventData: any): LogI {
                             message = eventDetails.message || 'Fragment reassembled.`'
                             break
                         default:
+                            // Handle student BB84 implementation logs
+                            if (eventDetails?.message) {
+                                level = LogLevel.PROTOCOL; // Student implementation details
+                                message = eventDetails.message;
+                                
+                                // Add additional context for student logs
+                                if (eventDetails.student_method) {
+                                    message += ` [${eventDetails.student_method}]`;
+                                }
+                                if (eventDetails.qubits_prepared) {
+                                    message += ` (${eventDetails.qubits_prepared} qubits)`;
+                                }
+                                if (eventDetails.shared_bases !== undefined) {
+                                    message += ` (${eventDetails.shared_bases} shared bases)`;
+                                }
+                                if (eventDetails.efficiency !== undefined) {
+                                    message += ` (${eventDetails.efficiency.toFixed(1)}% efficiency)`;
+                                }
+                                if (eventDetails.error_rate !== undefined) {
+                                    message += ` (${(eventDetails.error_rate * 100).toFixed(1)}% error rate)`;
+                                }
+                                if (eventDetails.errors !== undefined && eventDetails.comparisons !== undefined) {
+                                    message += ` (${eventDetails.errors}/${eventDetails.comparisons} errors)`;
+                                }
+                            } else {
+                                level = LogLevel.INFO;
+                                message = 'Information event.';
+                            }
                             break
                     }
 

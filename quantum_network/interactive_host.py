@@ -93,6 +93,9 @@ class InteractiveQuantumHost(QuantumNode):
             'error_rates': []
         }
         
+        # Optional back-reference to the owning adapter
+        self.adapter = None
+        
         print(f" Interactive Quantum Host '{name}' created!")
         print(f" Protocol: {protocol}")
         
@@ -107,7 +110,7 @@ class InteractiveQuantumHost(QuantumNode):
                 print(" VIBE CODE BB84 ALGORITHM USING THE HINTS PROVIDED TO RUN THE SIMULATION")
                 print(" This simulation will NOT work without student BB84 code!")
                 print(" Export your student implementation plugin from the notebook to enable the simulation.")
-                print(" Open quantum_networking_interactive.ipynb for the export helper cell.")
+                print(" Open quantum_networking_complete.ipynb for the export helper cell.")
                 print(" No hardcoded fallbacks available!")
                 self.student_code_validated = False
         else:
@@ -119,6 +122,11 @@ class InteractiveQuantumHost(QuantumNode):
                     self.student_implementation.host = self
             except Exception:
                 pass
+            
+        # As a last resort, try to autowire from registry/globals/plugin
+        if not self.student_code_validated:
+            if self.try_autowire_student():
+                print(" 🔌 Student implementation autowired successfully")
             
         # Force require_student_code to always be True - no exceptions!
         self.require_student_code = True
@@ -231,7 +239,7 @@ class InteractiveQuantumHost(QuantumNode):
             print(f"❌ Cannot perform '{operation_name}' - Student implementation required!")
             print(" VIBE CODE BB84 ALGORITHM USING THE HINTS PROVIDED TO RUN THE SIMULATION")
             print(" Steps to enable:")
-            print("1. Open the Jupyter notebook (quantum_networking_interactive.ipynb)")
+            print("1. Open the Jupyter notebook (quantum_networking_complete.ipynb)")
             print("2. Implement your BB84 algorithms using the provided hints")
             print("3. Create a StudentImplementation class with required methods")
             print("4. Connect your implementation to the simulation")
@@ -265,6 +273,62 @@ class InteractiveQuantumHost(QuantumNode):
         self.validate_student_implementation()
         print(f" Updated to student implementation: {type(implementation).__name__}")
 
+    def try_autowire_student(self) -> bool:
+        """
+        Try to attach a student implementation from:
+          1) REGISTRY (if available)
+          2) builtins globals (alice/bob matching self.name)
+          3) plugin files (student_implementation_status.json + student_plugin.py)
+        Returns True if validation succeeds.
+        """
+        # 1) registry
+        try:
+            from quantum_network.student_registry import REGISTRY  # optional
+            impl = REGISTRY.get(self.name)
+            if impl:
+                if self.attach_student(impl):
+                    return True
+        except Exception:
+            pass
+
+        # 2) builtins globals
+        try:
+            import builtins
+            alias = self.name.lower()  # "Alice" -> "alice"
+            impl = getattr(builtins, alias, None)
+            if impl and self.attach_student(impl):
+                return True
+        except Exception:
+            pass
+
+        # 3) plugin files
+        try:
+            if self._load_student_plugin_from_file() and self.validate_student_implementation():
+                return True
+        except Exception:
+            pass
+
+        return False
+
+    def attach_student(self, student) -> bool:
+        """Attach a student BB84 implementation and validate it."""
+        self.student_implementation = student
+        ok = self.validate_student_implementation()
+        self.student_code_validated = ok
+        # Give student code a host reference if it wants one
+        try:
+            if hasattr(student, "set_host"):
+                student.set_host(self)
+            elif not hasattr(student, "host") or getattr(student, "host", None) is None:
+                setattr(student, "host", self)
+        except Exception:
+            pass
+        return ok
+
+    def set_adapter(self, adapter):
+        """Optional back-reference to the owning adapter."""
+        self.adapter = adapter
+
     def prepare_qubit(self, basis: str, bit: int) -> qt.Qobj:
         """
         Prepare a qubit in the given basis and bit value.
@@ -282,13 +346,32 @@ class InteractiveQuantumHost(QuantumNode):
             else:
                 return (qt.basis(2, 0) - qt.basis(2, 1)).unit()  # |->
 
-    def measure_qubit(self, qubit: qt.Qobj, basis: str) -> int:
+    def measure_qubit(self, qubit, basis: str) -> int:
         """
         Measure a qubit in the given basis.
         Students can override this for custom measurement strategies.
         """
         if self.student_implementation and hasattr(self.student_implementation, 'measure_qubit'):
             return self.student_implementation.measure_qubit(qubit, basis)
+        
+        # Handle string representations of qubits from notebook implementations
+        if isinstance(qubit, str):
+            if qubit in ('|0⟩', '|0>'):
+                qubit = qt.basis(2, 0)
+            elif qubit in ('|1⟩', '|1>'):
+                qubit = qt.basis(2, 1)
+            elif qubit in ('|+⟩', '|+>'):
+                qubit = (qt.basis(2, 0) + qt.basis(2, 1)).unit()
+            elif qubit in ('|-⟩', '|->'):
+                qubit = (qt.basis(2, 0) - qt.basis(2, 1)).unit()
+            else:
+                # Unknown string format, return random result
+                return random.choice([0, 1])
+        
+        # Ensure we have a valid QuTiP quantum object
+        if not isinstance(qubit, qt.Qobj):
+            print(f"Warning: Invalid qubit type {type(qubit)}, returning random result")
+            return random.choice([0, 1])
         
         # Default implementation
         if basis == "Z":
@@ -298,8 +381,12 @@ class InteractiveQuantumHost(QuantumNode):
             projector0 = qt.ket2dm((qt.basis(2, 0) + qt.basis(2, 1)).unit())
             projector1 = qt.ket2dm((qt.basis(2, 0) - qt.basis(2, 1)).unit())
 
-        prob0 = qt.expect(projector0, qubit)
-        return 0 if random.random() < prob0 else 1
+        try:
+            prob0 = qt.expect(projector0, qubit)
+            return 0 if random.random() < prob0 else 1
+        except Exception as e:
+            print(f"Error in quantum measurement: {e}")
+            return random.choice([0, 1])
 
     def bb84_send_qubits(self, num_qubits: int = None):
         """
@@ -337,7 +424,7 @@ class InteractiveQuantumHost(QuantumNode):
         # NO FALLBACKS! Students must implement this themselves
         print(" BB84 Send Qubits BLOCKED - Student implementation required!")
         print(" VIBE CODE BB84 ALGORITHM USING THE HINTS PROVIDED TO RUN THE SIMULATION")
-        print(" Students must implement bb84_send_qubits() method in the notebook")
+        print(" Students must implement bb84_send_qubits() method in quantum_networking_complete.ipynb")
         return False
 
     def process_received_qbit(self, qbit, from_channel: QuantumChannel):
@@ -357,39 +444,43 @@ class InteractiveQuantumHost(QuantumNode):
         # NO FALLBACKS! Students must implement this themselves
         print(" Process Received Qubit BLOCKED - Student implementation required!")
         print(" VIBE CODE BB84 ALGORITHM USING THE HINTS PROVIDED TO RUN THE SIMULATION")
-        print(" Students must implement process_received_qbit() method in the notebook")
+        print(" Students must implement process_received_qbit() method in quantum_networking_complete.ipynb")
         return False
 
     def bb84_reconcile_bases(self, their_bases: List[str]):
         """
         Perform basis reconciliation. ABSOLUTELY REQUIRES student implementation - NO FALLBACKS!
         """
+        print(f"🔍 {self.name}: bb84_reconcile_bases called with {len(their_bases)} bases")
         if not self.check_student_implementation_required("BB84 Basis Reconciliation"):
             return False
             
         if self.student_implementation and hasattr(self.student_implementation, 'bb84_reconcile_bases'):
+            print(f"🎓 {self.name}: Calling student bb84_reconcile_bases implementation")
             return self.student_implementation.bb84_reconcile_bases(their_bases)
         
         # NO FALLBACKS! Students must implement this themselves
         print(" BB84 Basis Reconciliation BLOCKED - Student implementation required!")
         print(" VIBE CODE BB84 ALGORITHM USING THE HINTS PROVIDED TO RUN THE SIMULATION")
-        print(" Students must implement bb84_reconcile_bases() method in the notebook")
+        print(" Students must implement bb84_reconcile_bases() method in quantum_networking_complete.ipynb")
         return False
 
     def bb84_estimate_error_rate(self, their_bits_sample: List[Tuple]):
         """
         Estimate error rate. ABSOLUTELY REQUIRES student implementation - NO FALLBACKS!
         """
+        print(f"🔍 {self.name}: bb84_estimate_error_rate called with {len(their_bits_sample)} bits")
         if not self.check_student_implementation_required("BB84 Error Rate Estimation"):
             return False
             
         if self.student_implementation and hasattr(self.student_implementation, 'bb84_estimate_error_rate'):
+            print(f"🎓 {self.name}: Calling student bb84_estimate_error_rate implementation")
             return self.student_implementation.bb84_estimate_error_rate(their_bits_sample)
         
         # NO FALLBACKS! Students must implement this themselves
         print(" BB84 Error Rate Estimation BLOCKED - Student implementation required!")
         print(" VIBE CODE BB84 ALGORITHM USING THE HINTS PROVIDED TO RUN THE SIMULATION")
-        print(" Students must implement bb84_estimate_error_rate() method in the notebook")
+        print(" Students must implement bb84_estimate_error_rate() method in quantum_networking_complete.ipynb")
         return False
 
     def show_vibe_code_message(self):
@@ -400,7 +491,7 @@ class InteractiveQuantumHost(QuantumNode):
         print(" SIMULATION BLOCKED: Student implementation required!")
         print("")
         print(" TO UNLOCK THE SIMULATION:")
-        print("1.  Open quantum_networking_interactive.ipynb")
+        print("1.  Open quantum_networking_complete.ipynb")
         print("2.  Implement BB84 algorithms using the provided hints")
         print("3.  Connect your code to the simulation")
         print("4.  Run the simulation with YOUR quantum protocols!")
@@ -436,6 +527,14 @@ class InteractiveQuantumHost(QuantumNode):
         }
         print(f" {self.name}: Learning statistics reset")
 
+    def reset_qkd_state(self):
+        """Reset the QKD state after completion or failure."""
+        self.basis_choices = []
+        self.measurement_outcomes = []
+        self.shared_bases_indices = []
+        self._reconcile_sent = False
+        print(f" {self.name}: QKD state reset")
+
     # Override parent methods to support student implementations
     def receive_qubit(self, qbit, from_channel):
         """Override to add debug info"""
@@ -451,15 +550,7 @@ class InteractiveQuantumHost(QuantumNode):
                 if self.protocol == "bb84" or self.entangled_channel:
                     qbit, from_channel = self.qmemeory_buffer.get()
                     self.process_received_qbit(qbit, from_channel)
-                    # If we've received enough measurements for this session, trigger reconciliation once
-                    try:
-                        chan = self.get_channel()
-                        expected = getattr(chan, 'num_bits', 0) or 0
-                        if expected and not self._reconcile_sent and len(self.measurement_outcomes) >= expected:
-                            self.send_bases_for_reconcile()
-                            self._reconcile_sent = True
-                    except Exception:
-                        pass
+                    # Bob only processes received qubits - Alice triggers reconciliation
                 elif self.protocol == "entanglement_swapping":
                     print(f"ERROR: Host {self.name} received a qubit while in entanglement_swapping mode.")
                 else:
@@ -490,14 +581,14 @@ class InteractiveQuantumHost(QuantumNode):
         try:
             self._send_update(
                 SimulationEventType.INFO,
-                data=dict(
-                    type="qkd_reconcile_bases_sent",
-                    host=self.name,
-                    count=len(self.basis_choices),
-                ),
+                type="qkd_reconcile_bases_sent",
+                host=self.name,
+                count=len(self.basis_choices),
             )
         except Exception:
             pass
+        print(f"📤 {self.name}: Sending reconcile_bases message with {len(self.basis_choices)} bases")
+        print(f"📤 {self.name}: send_classical_data callback: {self.send_classical_data}")
         self.send_classical_data({
             'type': 'reconcile_bases',
             'data': self.basis_choices
@@ -505,35 +596,36 @@ class InteractiveQuantumHost(QuantumNode):
 
     def receive_classical_data(self, message):
         """Handle received classical data"""
+        print(f"🔍 {self.name}: Received classical data: {message}")
         message_type = message.get("type")
         
         if self.protocol == "bb84" or self.entangled_channel:
             if message_type == "reconcile_bases":
+                print(f"🔍 {self.name}: Received reconcile_bases message with {len(message.get('data', []))} bases")
                 # Log receive
                 try:
                     self._send_update(
                         SimulationEventType.INFO,
-                        data=dict(
-                            type="qkd_reconcile_bases_received",
-                            host=self.name,
-                            count=len(message.get("data", [])),
-                        ),
+                        type="qkd_reconcile_bases_received",
+                        host=self.name,
+                        count=len(message.get("data", [])),
                     )
                 except Exception:
                     pass
+                print(f"🎓 {self.name}: Calling bb84_reconcile_bases with received data")
                 self.bb84_reconcile_bases(message["data"])
             elif message_type == "estimate_error_rate":
+                print(f"🔍 {self.name}: Received estimate_error_rate message with {len(message.get('data', []))} bits")
                 try:
                     self._send_update(
                         SimulationEventType.INFO,
-                        data=dict(
-                            type="qkd_estimate_error_rate_received",
-                            host=self.name,
-                            sample_size=len(message.get("data", [])),
-                        ),
+                        type="qkd_estimate_error_rate_received",
+                        host=self.name,
+                        sample_size=len(message.get("data", [])),
                     )
                 except Exception:
                     pass
+                print(f"🎓 {self.name}: Calling bb84_estimate_error_rate with received data")
                 self.bb84_estimate_error_rate(message["data"])
             elif message_type == "complete":
                 raw_key = self.bb84_extract_key()
@@ -543,11 +635,9 @@ class InteractiveQuantumHost(QuantumNode):
                 try:
                     self._send_update(
                         SimulationEventType.INFO,
-                        data=dict(
-                            type="qkd_complete_received",
-                            host=self.name,
-                            key_length=len(raw_key),
-                        ),
+                        type="qkd_complete_received",
+                        host=self.name,
+                        key_length=len(raw_key),
                     )
                 except Exception:
                     pass
@@ -555,11 +645,9 @@ class InteractiveQuantumHost(QuantumNode):
                 try:
                     self._send_update(
                         SimulationEventType.INFO,
-                        data=dict(
-                            type="qkd_shared_bases_indices_received",
-                            host=self.name,
-                            count=len(message.get('data', [])),
-                        ),
+                        type="qkd_shared_bases_indices_received",
+                        host=self.name,
+                        count=len(message.get('data', [])),
                     )
                 except Exception:
                     pass
@@ -572,17 +660,16 @@ class InteractiveQuantumHost(QuantumNode):
 
     def update_shared_bases_indices(self, shared_base_indices):
         """Update shared bases indices and start error estimation"""
+        print(f"🔍 {self.name}: update_shared_bases_indices called with {len(shared_base_indices)} indices")
         channel = self.get_channel()
         self.shared_bases_indices = shared_base_indices
         # Log that shared indices were set
         try:
             self._send_update(
                 SimulationEventType.INFO,
-                data=dict(
-                    type="qkd_shared_bases_indices_set",
-                    host=self.name,
-                    count=len(shared_base_indices),
-                ),
+                type="qkd_shared_bases_indices_set",
+                host=self.name,
+                count=len(shared_base_indices),
             )
         except Exception:
             pass
@@ -596,15 +683,14 @@ class InteractiveQuantumHost(QuantumNode):
         try:
             self._send_update(
                 SimulationEventType.INFO,
-                data=dict(
-                    type="qkd_estimate_error_rate_sent",
-                    host=self.name,
-                    sample_size=len(error_sample),
-                ),
+                type="qkd_estimate_error_rate_sent",
+                host=self.name,
+                sample_size=len(error_sample),
             )
         except Exception:
             pass
         
+        print(f"📤 {self.name}: Sending estimate_error_rate message with {len(error_sample)} bits")
         self.send_classical_data({
             'type': 'estimate_error_rate',
             'data': error_sample

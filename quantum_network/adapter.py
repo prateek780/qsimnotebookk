@@ -1,17 +1,18 @@
 from queue import Queue
-import time
 from typing import List, Tuple
+
+# qutip is optional here; safe to keep the import if your env has it
 try:
-    import qutip as qt
+    import qutip as qt  # noqa: F401
 except Exception:
     qt = None
+
 from classical_network.connection import ClassicConnection
 from classical_network.enum import PacketType
 from classical_network.packet import ClassicDataPacket
-from classical_network.presets.connection_presets import DEFAULT_PRESET, GIGABIT_ETHERNET
 from classical_network.router import ClassicalRouter
 from core.base_classes import Node, World, Zone
-from core.enums import InfoEventType, NodeType, NetworkType, SimulationEventType
+from core.enums import NodeType, NetworkType, SimulationEventType
 from core.exceptions import (
     DefaultGatewayNotFound,
     NotConnectedError,
@@ -22,19 +23,9 @@ from core.exceptions import (
 )
 from core.network import Network
 
-# from quantum_network.channel import QuantumChannel
-try:
-    from quantum_network.host import QuantumHost
-except ImportError as e:
-    print(f"Warning: Could not import QuantumHost: {e}")
-    QuantumHost = None
+from quantum_network.interactive_host import InteractiveQuantumHost as QuantumHost
 from quantum_network.packet import QKDTransmissionPacket
-from utils.mtu_fragmentation import fragment_packet
 from utils.simple_encryption import simple_xor_decrypt, simple_xor_encrypt
-
-# from quantum_network.node import QuantumNode
-# from quantum_network.repeater import QuantumRepeater
-# from classical_network.router import ClassicalRouter
 
 
 class QuantumAdapter(Node):
@@ -56,13 +47,22 @@ class QuantumAdapter(Node):
         self.quantum_network = quantum_network
         self.input_data_buffer = Queue()
 
-        self.shared_key = None  # Store the shared secret key here
-        self.qkd_in_progress = False  # Track if QKD is currently in progress
-        self.last_qkd_time = 0  # Track when the last QKD was initiated
+        # QKD state
+        self.shared_key: List[int] | None = None
+        self._qkd_in_progress: bool = False
 
-        self.local_quantum_host = quantum_host
+        # Local quantum host
+        self.local_quantum_host: QuantumHost = quantum_host
+        # Wire host <-> adapter bridge
         self.local_quantum_host.send_classical_data = self.send_classical_data
         self.local_quantum_host.qkd_completed_fn = self.on_qkd_established
+        if hasattr(self.local_quantum_host, "set_adapter"):
+            try:
+                self.local_quantum_host.set_adapter(self)
+            except Exception:
+                pass
+
+        # Internal classical router
         self.local_classical_router = ClassicalRouter(
             f"InternalQCRouter{self.name}",
             self.location,
@@ -70,20 +70,23 @@ class QuantumAdapter(Node):
             self.zone,
             f"QC_Router_{self.name}",
         )
+        # Intercept to apply enc/dec transparently
         self.local_classical_router.route_packet = self.intercept_route_packet
 
-        self.paired_adapter = paired_adapter  # Reference to the paired adapter
+        # Pairing
+        self.paired_adapter: "QuantumAdapter" | None = paired_adapter
         if paired_adapter:
-            # TODO: Add connection config
             connection = ClassicConnection(
                 self.local_classical_router,
                 self.paired_adapter.local_classical_router,
-                DEFAULT_PRESET,
+                10,
+                10,
                 name="QC_Router_Connection",
             )
             self.local_classical_router.add_connection(connection)
             self.paired_adapter.local_classical_router.add_connection(connection)
 
+        # Ensure a quantum channel exists between hosts
         if paired_adapter and (
             not self.local_quantum_host.channel_exists(
                 paired_adapter.local_quantum_host
@@ -92,187 +95,143 @@ class QuantumAdapter(Node):
             raise QuantumChannelDoesNotExists(self)
 
     def add_paired_adapter(self, adapter: "QuantumAdapter"):
+        """Pair after construction; also wire classical link and verify quantum channel."""
         if self.paired_adapter:
             raise PairAdapterAlreadyExists(self, self.paired_adapter)
 
         self.paired_adapter = adapter
 
-    def on_qkd_established(self, key: List[int]):
-        """Handle successful QKD completion and key establishment."""
-        self.shared_key = key
-        key_str = ''.join(map(str, self.shared_key))
-        self.qkd_in_progress = False  # Reset QKD progress flag
-        
-        self.logger.info(f"QKD completed successfully at {self.name}")
-        self._send_update(SimulationEventType.SHARED_KEY_GENERATED, key=key_str)
-        self._send_update(
-            SimulationEventType.INFO,
-            data=dict(
-                type="qkd_complete",
-                message=f"QKD completed at {self.name}, shared key established"
-            )
+        # Build classical connection in both routers
+        connection = ClassicConnection(
+            self.local_classical_router,
+            adapter.local_classical_router,
+            10,
+            10,
+            name="QC_Router_Connection",
         )
-        
-        # Notify paired adapter about key establishment
-        self.send_classical_data({
-            "type": "key_established",
-            "key": key_str,
-            "time": time.time()
-        })
+        self.local_classical_router.add_connection(connection)
+        adapter.local_classical_router.add_connection(connection)
 
-        # Process any packets that were buffered during QKD
-        self.process_buffered_packets()
+        # Ensure quantum channel exists between hosts
+        if not self.local_quantum_host.channel_exists(adapter.local_quantum_host):
+            raise QuantumChannelDoesNotExists(self)
+
+    def on_qkd_established(self, key: List[int]):
+        """Callback from host when QKD completes."""
+        self.shared_key = key
+        self.logger.debug(f"QKD Established {key}")
+
+        # Flush buffered packets now that we can decrypt/encrypt
+        while not self.input_data_buffer.empty():
+            packet = self.input_data_buffer.get()
+            self.receive_packet(packet)
 
     def calculate_distance(self, node1, node2):
-        # Simple Euclidean distance calculation, adjust as needed for your network topology
         x1, y1 = node1.location
         x2, y2 = node2.location
         return ((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5
 
     def initiate_qkd(self):
-        """Initiate QKD with the paired adapter if not already in progress."""
+        """Start QKD with the paired adapter, safely and only once at a time."""
+        if self._qkd_in_progress or self.shared_key is not None:
+            return
+
         if not self.paired_adapter:
-            self.logger.error(f"{self.name} has no paired adapter to perform QKD.")
+            self.logger.debug(f"{self.name} has no paired adapter to perform QKD.")
             raise PairAdapterDoesNotExists(self)
 
-        current_time = time.time()
-        
-        # Check if QKD is already in progress
-        if self.qkd_in_progress:
-            self.logger.info(f"QKD already in progress at {self.name}, skipping new request")
-            return False
-            
-        # Check if we already have a shared key
-        if self.shared_key is not None:
-            self.logger.info(f"{self.name} already has a shared key with {self.paired_adapter.name}")
-            return False
-        
-        # Add a small delay between QKD attempts to prevent rapid retries
-        if current_time - self.last_qkd_time < 1.0:  # 1 second minimum delay
-            self.logger.info(f"Too soon to start new QKD at {self.name}, waiting...")
-            return False
+        host = getattr(self, "local_quantum_host", None)
+        if host is None:
+            raise RuntimeError(f"{self.name}: QKD cannot start, local_quantum_host is None")
 
-        self.qkd_in_progress = True
-        self.last_qkd_time = current_time
-        
-        self.logger.info(f"Initiating QKD between {self.name} and {self.paired_adapter.name}")
-        self._send_update(
-            SimulationEventType.INFO,
-            data=dict(
-                type="qkd_start",
-                message=f"Starting QKD process between {self.name} and {self.paired_adapter.name}"
+        # Validate student implementation; try to autowire if needed
+        validated = getattr(host, "student_code_validated", False)
+        if not validated:
+            try:
+                if hasattr(host, "try_autowire_student") and host.try_autowire_student():
+                    validated = getattr(host, "student_code_validated", False)
+                elif hasattr(host, "validate_student_implementation"):
+                    host.validate_student_implementation()
+                    validated = getattr(host, "student_code_validated", False)
+            except Exception as e:
+                print(f"❌ {self.name}: Autowire/validation failed: {e}")
+                validated = False
+
+        if not validated:
+            raise RuntimeError(
+                f"{self.name}: QKD cannot start, student implementation not validated. "
+                f"Make sure your BB84 code is properly implemented and attached."
             )
-        )
-        
-        self.local_quantum_host.perform_qkd()
-        self._send_update(SimulationEventType.QKD_INITIALIZED, with_adapter=self.paired_adapter)
-        return True
+
+        self._qkd_in_progress = True
+        try:
+            self.local_quantum_host.perform_qkd()
+            self._send_update(
+                SimulationEventType.QKD_INITIALIZED, with_adapter=self.paired_adapter
+            )
+        finally:
+            self._qkd_in_progress = False
 
     def receive_packet(self, packet: ClassicDataPacket | QKDTransmissionPacket):
-        """Handle incoming packets, both classical and QKD control messages."""
-        if (
-            packet.hops 
-            and packet.hops[-2] == self.paired_adapter.local_classical_router
-            and type(packet) == ClassicDataPacket
-        ):
-            # Handle encrypted classical data
-            self.process_packet(packet)
-        elif type(packet) == QKDTransmissionPacket:
-            # Handle QKD control messages
-            try:
-                msg_type = packet.data.get('type', 'unknown') if isinstance(packet.data, dict) else 'unknown'
-                self._send_update(
-                    SimulationEventType.INFO,
-                    data=dict(
-                        type="qkd_control",
-                        message=f"QKD control message '{msg_type}' received at {self.name}",
-                        from_router=str(packet.from_address),
-                        to_router=str(packet.to_address),
-                    ),
-                )
-                
-                # Process different types of QKD control messages
-                if msg_type == "key_established":
-                    # Key establishment completed
-                    self.shared_key = [int(x) for x in packet.data.get('key', '')]
-                    self._send_update(
-                        SimulationEventType.INFO,
-                        data=dict(
-                            type="qkd_complete",
-                            message=f"QKD completed successfully at {self.name}"
-                        )
-                    )
-                    self._send_update(SimulationEventType.SHARED_KEY_RECEIVED, key=packet.data.get('key'))
-                    
-                    # Process any buffered packets
-                    self.process_buffered_packets()
-                elif msg_type == "complete":
-                    # QKD completion signal received
-                    self.logger.info(f"QKD completion signal received at {self.name}")
-                    self._send_update(
-                        SimulationEventType.INFO,
-                        data=dict(
-                            type="qkd_complete",
-                            message=f"QKD completed successfully at {self.name}"
-                        )
-                    )
-                    # Mark QKD as completed
-                    self.qkd_in_progress = False
-                    # Process any buffered packets
-                    self.process_buffered_packets()
-                elif msg_type == "reconcile_bases":
-                    self._send_update(
-                        SimulationEventType.INFO,
-                        data=dict(
-                            type="qkd_progress",
-                            message=f"Reconciling bases at {self.name}"
-                        )
-                    )
-                elif msg_type == "estimate_error_rate":
-                    self._send_update(
-                        SimulationEventType.INFO,
-                        data=dict(
-                            type="qkd_progress",
-                            message=f"Estimating error rate at {self.name}"
-                        )
-                    )
-                    
-            except Exception as e:
-                self.logger.error(f"Error processing QKD control message: {e}")
-                return
-                
-            # Forward QKD control message to quantum host
+        """
+        Adapter ingress for classical data and QKD control messages.
+        - Classical from paired adapter (encrypted): decrypt & forward.
+        - QKDTransmissionPacket: pass to host.
+        - Otherwise: kick off QKD if needed, then encrypt/forward appropriately.
+        """
+        print(f"📥 {self.name}: Received packet: {type(packet).__name__} - {packet.data if hasattr(packet, 'data') else 'No data'}")
+        
+        # 1) QKD control over classical link → host (check this FIRST since QKDTransmissionPacket inherits from ClassicDataPacket)
+        if isinstance(packet, QKDTransmissionPacket):
+            print(f"🔍 {self.name}: Processing QKDTransmissionPacket - passing to quantum host")
+            print(f"🔍 {self.name}: Packet data: {packet.data}")
             self.local_quantum_host.receive_classical_data(packet.data)
+            print(f"✅ {self.name}: QKDTransmissionPacket processed successfully")
+        
+        # 2) Encrypted classical from peer → decrypt/process
+        elif (
+            isinstance(packet, ClassicDataPacket)
+            and self.paired_adapter is not None
+            and len(packet.hops) >= 2
+            and packet.hops[-2] == self.paired_adapter.local_classical_router
+        ):
+            print(f"🔍 {self.name}: Processing ClassicDataPacket (encrypted from peer)")
+            self.process_packet(packet)
+
         else:
-            # Handle packets that need encryption
+            print(f"🔍 {self.name}: Processing packet in else clause")
+            # 3) No key yet: start QKD once and buffer packet
             if self.shared_key is None and self.paired_adapter is not None:
-                self.logger.info(f"No shared key available at {self.name}, buffering packet")
-                self.input_data_buffer.put(packet)
-                
-                # Only initiate QKD if not already in progress
-                if not self.qkd_in_progress:
+                print(f"🔍 {self.name}: No shared key, buffering packet")
+                if not self._qkd_in_progress:
                     self.initiate_qkd()
+                self.input_data_buffer.put(packet)
                 return
 
-            # If the packet is for the paired adapter, check if a key exists and then encrypt and forward
-            if self.paired_adapter and packet.to_address == self.local_classical_router:
+            # 4) If destined to the paired adapter, encrypt then forward
+            if (
+                self.paired_adapter is not None
+                and packet.to_address == self.paired_adapter.local_classical_router
+            ):
                 if self.shared_key:
-                    packet = self.encrypt_packet(packet)
-                    self._send_update(SimulationEventType.DATA_ENCRYPTED, cipher=packet.data, algorithm="XOR")
-                    self.forward_packet(packet, self.paired_adapter.local_classical_router)
+                    enc = self.encrypt_packet(packet)
+                    self.forward_packet(enc, self.paired_adapter.local_classical_router)
                 else:
+                    import time
                     print(
-                        f"Time: {self.network.world.time:.2f}, {self.name} cannot forward packet, no shared key with {self.paired_adapter.name}"
+                        f"Time: {time.time():.2f}, {self.name} cannot forward packet, "
+                        f"no shared key with {self.paired_adapter.name}"
                     )
             else:
-                # Otherwise, forward the packet normally
-                self.forward_packet(packet, self.paired_adapter.local_classical_router)
+                # 5) Otherwise, forward toward its intended next hop
+                self.forward_packet(packet, packet.to_address)
+
         self._send_update(SimulationEventType.DATA_RECEIVED, packet=packet)
 
-    def encrypt_packet(self, packet: ClassicDataPacket):
+    def encrypt_packet(self, packet: ClassicDataPacket) -> ClassicDataPacket:
         encrypted_data = simple_xor_encrypt(packet.data, self.shared_key)
         self.logger.debug(f"Encrypted Data: {packet.data} -> {encrypted_data}")
-        
+
         return ClassicDataPacket(
             data=encrypted_data,
             from_address=packet.from_address,
@@ -285,7 +244,7 @@ class QuantumAdapter(Node):
             destination_address=packet.destination_address,
         )
 
-    def decrypt_packet(self, packet: ClassicDataPacket):
+    def decrypt_packet(self, packet: ClassicDataPacket) -> ClassicDataPacket:
         decrypted_data = simple_xor_decrypt(packet.data, self.shared_key)
         self.logger.debug(f"Decrypted Data: {packet.data} -> {decrypted_data}")
 
@@ -301,49 +260,26 @@ class QuantumAdapter(Node):
         )
 
     def process_packet(self, packet: ClassicDataPacket):
-        """Process and forward classical data packets."""
+        """Decrypt and forward decrypted classical packet if we have a key."""
         if self.shared_key:
-            # Decrypt and forward the packet
-            packet = self.decrypt_packet(packet)
-            self._send_update(SimulationEventType.DATA_DECRYPTED, data=packet.data, algorithm="XOR")
-            self.logger.info(f"Successfully decrypted packet at {self.name}")
-            
-            # Determine final destination
-            forward_to = packet.destination_address or packet.to_address
-            
-            # Forward the packet
-            self.forward_packet(packet, forward_to)
-            self._send_update(
-                SimulationEventType.INFO,
-                data=dict(
-                    type="packet_forwarded",
-                    message=f"Forwarded decrypted packet to {forward_to}",
-                    from_adapter=self.name,
-                    to_destination=str(forward_to),
-                    packet_data=packet.data
-                )
-            )
+            dec = self.decrypt_packet(packet)
+            # Forward decrypted packet to its intended classical destination
+            self.forward_packet(dec, dec.to_address)
         else:
-            self.logger.warning(f"Time: {self.network.world.time:.2f}, {self.name} cannot process packet, no shared key")
-            # Buffer the packet and initiate QKD if needed
-            if self.paired_adapter:
-                self.logger.info(f"Buffering packet and initiating QKD with {self.paired_adapter.name}")
-                self.input_data_buffer.put(packet)
-                self.initiate_qkd()
-                
-    def process_buffered_packets(self):
-        """Process any packets that were buffered while waiting for QKD completion."""
-        self.logger.info(f"Processing buffered packets at {self.name}")
-        while not self.input_data_buffer.empty():
-            packet = self.input_data_buffer.get()
-            self.process_packet(packet)
+            import time
+            print(
+                f"Time: {time.time():.2f}, {self.name} cannot process packet, no shared key"
+            )
 
     def send_classical_data(self, data):
+        """Called by the quantum host to send QKD control/classical data."""
+        print(f"📤 {self.name}: Sending classical data: {data}")
+        if self.paired_adapter is None:
+            raise PairAdapterDoesNotExists(self)
 
         conn = self.local_classical_router.get_connection(
             self.local_classical_router, self.paired_adapter.local_classical_router
         )
-
         if not conn:
             raise NotConnectedError(self, self.paired_adapter.local_classical_router)
 
@@ -356,86 +292,62 @@ class QuantumAdapter(Node):
         conn.transmit_packet(packet)
 
     def forward(self):
+        """Advance internal classical router events."""
         self.local_classical_router.forward()
 
     def intercept_route_packet(self, packet: ClassicDataPacket):
+        """Router hook to allow the adapter to examine and process packets."""
         self.receive_packet(packet)
 
     def forward_packet(self, packet: ClassicDataPacket, to):
+        """Forward a packet to a directly connected neighbor or via default gateway."""
         packet.append_hop(self.local_classical_router)
-        self.logger.info(f"Forwarding packet from {self.name} to {to}")
-        
-        # Get direct connection if available
+
         direct_connection = self.local_classical_router.get_connection(
             self.local_classical_router, to
         )
-
         if direct_connection:
-            self.logger.debug(f"Direct connection found between {self.name} and {to}")
-            packet.next_hop = to
-            
-            # Handle MTU fragmentation if needed
-            if direct_connection.mtu != -1 and packet.size_bytes > direct_connection.mtu:
-                self.logger.info(f"Fragmenting packet due to MTU limit: {direct_connection.mtu}")
-                fragments = fragment_packet(packet, direct_connection.mtu)
-                self._send_update(
-                    SimulationEventType.INFO,
-                    data=dict(
-                        type=InfoEventType.PACKET_FRAGMENTED,
-                        message=f"Packet fragmented into {len(fragments)} fragments due to MTU limit of {direct_connection.mtu} bytes."
-                    )
-                )
-                for fragment in fragments:
-                    direct_connection.transmit_packet(fragment)
-                    self.logger.debug(f"Transmitted fragment to {to}")
-            else:
-                direct_connection.transmit_packet(packet)
-                self.logger.debug(f"Transmitted packet to {to}")
+            packet.next_hop = packet.to_address
+            direct_connection.transmit_packet(packet)
             return
-        
-        try:
-            shortest_path = self.local_classical_router.default_gateway.get_path(
-                self.local_classical_router, packet.to_address
-            )
-            
-            if len(shortest_path) <= 1:
-                raise NotConnectedError(self.local_classical_router, packet.to_address)
-            
-            next_hop = shortest_path[1]
-            self.logger.info(f"Routing packet via {next_hop} to reach {packet.to_address}")
-            
-            packet.next_hop = next_hop
-            next_connection = self.local_classical_router.get_connection(
-                self.local_classical_router, next_hop
-            )
-            
-            if not next_connection:
-                raise NotConnectedError(self.local_classical_router, next_hop)
-            
-            # Handle MTU fragmentation for indirect routes
-            if next_connection.mtu != -1 and packet.size_bytes > next_connection.mtu:
-                self.logger.info(f"Fragmenting packet for indirect route via {next_hop}")
-                fragments = fragment_packet(packet, next_connection.mtu)
-                self._send_update(
-                    SimulationEventType.INFO,
-                    data=dict(
-                        type=InfoEventType.PACKET_FRAGMENTED,
-                        message=f"Packet fragmented into {len(fragments)} fragments for transmission via {next_hop}"
-                    )
-                )
-                for fragment in fragments:
-                    next_connection.transmit_packet(fragment)
-                    self.logger.debug(f"Transmitted fragment to {next_hop}")
-            else:
-                next_connection.transmit_packet(packet)
-                self.logger.debug(f"Transmitted packet to {next_hop}")
-                
-        except Exception as e:
-            self.logger.error(f"Error forwarding packet: {str(e)}")
-            raise
 
-    def __name__(self):
+        # Fall back to shortest path via default gateway
+        shortest_path = self.local_classical_router.default_gateway.get_path(
+            self.local_classical_router, packet.to_address
+        )
+        if len(shortest_path) <= 1:
+            raise NotConnectedError(self.local_classical_router, packet.to_address)
+
+        next_hop = shortest_path[1]
+        packet.next_hop = next_hop
+        next_connection = self.local_classical_router.get_connection(
+            self.local_classical_router, next_hop
+        )
+        if not next_connection:
+            raise NotConnectedError(self.local_classical_router, next_hop)
+
+        next_connection.transmit_packet(packet)
+
+    def _name_(self):
         return f"QuantumAdapter - '{self.name}'"
 
-    def __repr__(self):
-        return self.__name__()
+    def attach_student_implementation(self, student_impl):
+        """Helper method to attach student implementation to the quantum host."""
+        if not self.local_quantum_host:
+            print(f"❌ {self.name}: No quantum host available to attach student implementation")
+            return False
+
+        if hasattr(self.local_quantum_host, "attach_student"):
+            ok = self.local_quantum_host.attach_student(student_impl)
+            if ok:
+                print(f"✅ {self.name}: Student implementation attached successfully")
+            else:
+                print(f"❌ {self.name}: Student implementation attach() returned False")
+            return ok
+
+        self.local_quantum_host.student_implementation = student_impl
+        print(f"✅ {self.name}: Student implementation set directly")
+        return True
+
+    def _repr_(self):
+        return self._name_()

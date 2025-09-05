@@ -131,7 +131,7 @@ class Node(Sobject):
             None  # Network address can be assigned to both classical and quantum nodes
         )
 
-        with open("log.txt", "a") as f:
+        with open("log.txt", "a", encoding="utf-8") as f:
             f.write(f"{self.name} created\n")
 
     def set_on_update_func(self, func):
@@ -142,7 +142,7 @@ class Node(Sobject):
 
     def on_update(self, event):
         # Temporalty
-        with open("log.txt", "a") as f:
+        with open("log.txt", "a", encoding="utf-8") as f:
             f.write(f"{self.name} received event {event.data}\n")
 
         if self.on_update_func:

@@ -92,6 +92,10 @@ class EmbeddingUtil:
     
     def format_log_for_embedding(self, log: Union[LogEntry, Dict[str, Any]]) -> str:
         """Format log entry as text for embedding"""
+        # Handle None log
+        if log is None:
+            return "Empty log entry"
+            
         if isinstance(log, LogEntry):
             # Extract fields from LogEntry
             level = log.level.value if hasattr(log.level, 'value') else log.level
@@ -101,15 +105,15 @@ class EmbeddingUtil:
             details = log.details
         else:
             # Extract fields from dictionary
-            level = log.get('level')
+            level = log.get('level') if log else None
             if isinstance(level, LogLevel):
                 level = level.value
-            component = log.get('component')
-            entity_type = log.get('entity_type')
+            component = log.get('component') if log else None
+            entity_type = log.get('entity_type') if log else None
             if isinstance(entity_type, NodeType):
                 entity_type = entity_type.value
-            entity_id = log.get('entity_id')
-            details = log.get('details', {})
+            entity_id = log.get('entity_id') if log else None
+            details = log.get('details', {}) if log else {}
         
         # Format as text
         text_parts = [
@@ -135,14 +139,34 @@ class EmbeddingUtil:
     
     def embed_and_store_log(self, log: Union[LogEntry, Dict[str, Any]]) -> str:
         """Generate embedding for log and store in Redis"""
-        # Format log as text
-        log_text = self.format_log_for_embedding(log)
-        
-        # Generate embedding
-        embedding = self.generate_embedding(log_text)
-        
-        # Store in Redis
-        return VectorLogEntry.store_log_with_embedding(log, embedding)
+        # Handle None log immediately
+        if log is None:
+            return None
+
+        # Check if embedding is disabled
+        if os.environ.get("DISABLE_EMBEDDING", "0") == "1":
+            return None
+
+        try:
+            # Format log as text
+            log_text = self.format_log_for_embedding(log)
+
+            # Generate embedding
+            embedding = self.generate_embedding(log_text)
+
+            # Store in Redis
+            return VectorLogEntry.store_log_with_embedding(log, embedding)
+        except Exception as e:
+            # Handle Redis out of memory or other Redis errors gracefully
+            if "OutOfMemoryError" in str(e) or "maxmemory" in str(e):
+                print("⚠️ Redis out of memory, skipping embedding storage")
+                return None
+            elif "ConnectionError" in str(e) or "redis" in str(e).lower():
+                print("⚠️ Redis connection issue, skipping embedding storage")
+                return None
+            else:
+                print(f"⚠️ Error storing embedding: {e}")
+                return None
     
     def query_logs_by_text(self, 
                          query_text: str, 

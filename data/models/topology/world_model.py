@@ -47,25 +47,34 @@ class WorldModal(JsonModel):
     class Meta:
         global_key_prefix = "network-sim"
         model_key_prefix = "world"
-        database = get_redis_conn()
+        database = None
 
 
 def save_world_to_redis(world: Union[Dict[str, Any], WorldModal]) -> WorldModal:
-    """Save world data to Redis"""
-    # Ensure we have a connection
-    get_redis_conn()
-
-    # Ensure indexes are created
-    Migrator().run()
-
+    """Save world data to Redis or file storage"""
+    # Check if Redis is available
+    redis_conn = get_redis_conn()
+    
     # Create World instance
     if isinstance(world, dict):
         world = WorldModal(**world)
 
-    # Save to Redis
-    world.save()
-
-    return world
+    if redis_conn is None:
+        print("Redis not available, using file storage")
+        # Import file storage functions locally to avoid circular import
+        from data.models.topology.file_storage import save_topology_to_file
+        if save_topology_to_file(world):
+            print("Topology saved to file successfully")
+        else:
+            print("Failed to save topology to file")
+        return world
+    else:
+        # Use Redis
+        # Ensure indexes are created
+        Migrator().run()
+        # Save to Redis
+        world.save()
+        return world
 
 
 def update_world_in_redis(
@@ -112,28 +121,51 @@ def get_topology_from_redis(primary_key: str) -> Optional[WorldModal]:
 def get_all_topologies_from_redis(
     temporary_world=False, owner=None
 ) -> List[WorldModal]:
-    """Retrieve all worlds from Redis"""
-    # Ensure we have a connection
-    get_redis_conn()
+    """Retrieve all worlds from Redis or file storage"""
+    try:
+        # Check if Redis is available
+        redis_conn = get_redis_conn()
+        if redis_conn is None:
+            print("Redis not available, using file storage")
+            # Import file storage functions locally to avoid circular import
+            from data.models.topology.file_storage import load_all_topologies_from_file
+            topologies_data = load_all_topologies_from_file(temporary_world, owner)
+            # Convert to WorldModal objects
+            worlds = []
+            for data in topologies_data:
+                try:
+                    # Remove pk from data as it's not part of the model
+                    data_copy = data.copy()
+                    data_copy.pop('pk', None)
+                    world = WorldModal(**data_copy)
+                    worlds.append(world)
+                except Exception as e:
+                    print(f"Error converting topology data: {e}")
+                    continue
+            return worlds
 
-    worlds = WorldModal.find(WorldModal.temporary_world == temporary_world).all()
-
-    print(list(map(lambda w: w.owner, worlds)))
-
-    worlds = list(filter(lambda w: owner is None or w.owner == owner, worlds))
-
-    return worlds
+        # Use Redis
+        worlds = WorldModal.find(WorldModal.temporary_world == temporary_world).all()
+        print(list(map(lambda w: w.owner, worlds)))
+        worlds = list(filter(lambda w: owner is None or w.owner == owner, worlds))
+        return worlds
+    except Exception as e:
+        print(f"Error retrieving topologies: {e}")
+        return []
 
 
 def delete_topology_from_redis(primary_key: str) -> bool:
     """Delete world data from Redis by primary key"""
-    # Ensure we have a connection
-    get_redis_conn()
-
     try:
+        # Ensure we have a connection
+        redis_conn = get_redis_conn()
+        if redis_conn is None:
+            print("Redis not available, cannot delete topology")
+            return False
+
         world = WorldModal.get(primary_key)
         world.delete()
         return True
     except Exception as e:
-        print(f"Error deleting world data: {e}")
+        print(f"Error deleting topology from Redis: {e}")
         return False

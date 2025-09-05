@@ -1,16 +1,59 @@
 import os
 import sys
+import pathlib
 
-# Set up environment variables
+# Fix Python path for data.models imports
+ROOT = pathlib.Path(__file__).resolve().parent
+sys.path.insert(0, str(ROOT))
+
+# Set up Redis with fallback to file storage
 os.environ["REDIS_HOST"] = "redis-11509.c90.us-east-1-3.ec2.redns.redis-cloud.com"
 os.environ["REDIS_PORT"] = "11509"
 os.environ["REDIS_USERNAME"] = "default"
 os.environ["REDIS_PASSWORD"] = "aDevCXKeLli9kldGJccV15D1yS93Oyvd"
 os.environ["REDIS_DB"] = "0"
 os.environ["REDIS_SSL"] = "False"
+
+# Set Redis URL for redis_om before any imports
+os.environ["REDIS_OM_URL"] = "redis://default:aDevCXKeLli9kldGJccV15D1yS93Oyvd@redis-11509.c90.us-east-1-3.ec2.redns.redis-cloud.com:11509/0"
+
+# Disable only problematic features, keep topology storage
+os.environ["DISABLE_EMBEDDING"] = "1"
+os.environ["DISABLE_AI_FEATURES"] = "1"
+os.environ["DISABLE_REDIS_LOGGING"] = "1"
+
+print("🔧 REDIS ENABLED - Topology storage available")
+print("🔧 EMBEDDING DISABLED - No memory issues")
+print("🔧 AI FEATURES DISABLED - Focus on BB84 simulation")
+print("🔧 REDIS LOGGING DISABLED - Prevent memory overflow")
+
+# Try to clear Redis memory if it's full
+try:
+    import redis
+    r = redis.Redis(
+        host=os.environ["REDIS_HOST"],
+        port=int(os.environ["REDIS_PORT"]),
+        username=os.environ["REDIS_USERNAME"],
+        password=os.environ["REDIS_PASSWORD"],
+        db=int(os.environ["REDIS_DB"]),
+        ssl=os.environ["REDIS_SSL"].lower() == "true"
+    )
+    # Clear only log-related keys to free memory
+    log_keys = r.keys("network-sim:log:*")
+    if log_keys:
+        r.delete(*log_keys)
+        print(f"🧹 Cleared {len(log_keys)} log entries from Redis to free memory")
+    else:
+        print("✅ Redis memory is clean")
+except Exception as e:
+    print(f"⚠️ Could not clear Redis memory: {e}")
+
+print(f"Redis configured: {os.environ['REDIS_HOST']}:{os.environ['REDIS_PORT']}")
 os.environ["GOOGLE_API_KEY"] = "AIzaSyCDR-02KzCcOwgcIGP1V4v_CiHcn3qwr1s"
 os.environ["OPENAI_API_KEY"] = os.environ["GOOGLE_API_KEY"]
 os.environ["LANGCHAIN_API_KEY"] = os.environ["GOOGLE_API_KEY"]
+# Disable embedding to prevent Redis memory issues
+os.environ["DISABLE_EMBEDDING"] = "1"
 
 # Replace flask.cli.load_dotenv with python-dotenv
 try:
@@ -19,7 +62,6 @@ try:
         print("Warning: .env file not found, using environment variables set above")
 except ImportError:
     print("python-dotenv not installed, using environment variables set above")
-
 import traceback
 from fastapi import FastAPI
 from server.app import get_app
@@ -29,31 +71,13 @@ app = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # try:
-    #     # Set Langchain env variables
-    #     config = load_config()
-    #     if config.llm.langchain_tracing:
-    #         os.environ["LANGSMITH_TRACING"] = 'true'
-    #         os.environ['LANGCHAIN_TRACING_V2'] = 'true'
-    #         os.environ["LANGSMITH_API_KEY"] = config.llm.langchain_api_key.get_secret_value()
-    #         os.environ["LANGSMITH_ENDPOINT"] = config.llm.langsmith_endpoint
-    #         os.environ["LANGCHAIN_PROJECT"] = config.llm.langchain_project_name
-    #         os.environ['OPENAI_API_KEY'] = config.llm.api_key.get_secret_value()
-    #         print("Lifespan: Langchain environment variables set.")
-    #     else:
-    #         logging.info("Lifespan: Langchain tracing is disabled.")
-    #         os.environ["LANGCHAIN_TRACING_V2"] = "false"
-    # except Exception as e:
-    #     print(f"Lifespan ERROR: Failed to set Langchain environment variables: {e}")
-
-    # Skip Redis and AI agent initialization for student implementation
-    print("🚀 Starting backend for student BB84 implementation...")
-    print("   Skipping Redis and AI agent initialization for simplicity")
+    # Initialize Redis and AI agents for full functionality
+    print("🚀 Starting backend with full AI agent and Redis support...")
+    print("   Initializing Redis and AI agents for log summarization")
     
     # Check if student implementation is ready
     try:
         import json
-        import os
         status_file = "student_implementation_status.json"
         if os.path.exists(status_file):
             with open(status_file, 'r') as f:

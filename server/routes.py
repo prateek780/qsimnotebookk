@@ -156,6 +156,12 @@ def register_blueprints(app: FastAPI):
     except Exception as e:
         print(f"Warning: Could not load quantum router: {e}")
 
+    try:
+        from server.student_status import router as student_status_router
+        api_router.include_router(student_status_router)
+    except Exception as e:
+        print(f"Warning: Could not load student status router: {e}")
+
     @api_router.get("/{rest_of_path:path}")
     async def handle_404(rest_of_path: str):
         return Response(content="Route not found", status_code=404)

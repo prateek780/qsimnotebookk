@@ -12,4 +12,4 @@ class UserModal(JsonModel):
     class Meta:
         global_key_prefix = "network-sim"
         model_key_prefix = "user"
-        database = get_redis_conn()
+        database = None

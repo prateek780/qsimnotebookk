@@ -7,7 +7,7 @@ from core.enums import NetworkType, NodeType
 from core.exceptions import UnSupportedNetworkError
 from core.network import Network
 from quantum_network.channel import QuantumChannel
-from quantum_network.host import QuantumHost
+from quantum_network.interactive_host import InteractiveQuantumHost as QuantumHost
 from quantum_network.repeater import QuantumRepeater
 import qutip as qt
 

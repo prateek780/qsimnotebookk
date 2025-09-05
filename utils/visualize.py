@@ -11,7 +11,7 @@ except Exception:
     _HAS_MPL = False
 
 from core.enums import NodeType
-from quantum_network.host import QuantumHost
+from quantum_network.interactive_host import InteractiveQuantumHost as QuantumHost
 from quantum_network.node import QuantumNode
 from quantum_network.repeater import QuantumRepeater
 

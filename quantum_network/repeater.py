@@ -12,7 +12,7 @@ except Exception:
     qt = None
 
 if TYPE_CHECKING:
-    from quantum_network.host import QuantumHost
+    from quantum_network.interactive_host import InteractiveQuantumHost as QuantumHost
 
 class QuantumRepeater(QuantumNode):
     def __init__(

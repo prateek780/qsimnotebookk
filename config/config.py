@@ -56,3 +56,8 @@ def get_config(config_path: str = "config/config.yaml") -> AppConfig:
         """Load application configuration."""
         loaded_config = AppConfig.from_yaml(config_path)
     return loaded_config
+
+def clear_config_cache():
+    """Clear the cached configuration to force reload"""
+    global loaded_config
+    loaded_config = None

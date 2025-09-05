@@ -6,16 +6,28 @@ from typing import Dict, Any
 from pydantic import BaseModel
 
 
-from data.models.topology.world_model import get_topology_from_redis
+try:
+    from data.models.topology.world_model import get_topology_from_redis
+except Exception as e:
+    print(f"Warning: Could not import get_topology_from_redis: {e}")
+    def get_topology_from_redis(topology_id):
+        return None
 from server.api.simulation.manager import SimulationManager
 
 simulation_router = APIRouter(prefix="/simulation", tags=["Simulation"])
 
-try:
-    manager = SimulationManager.get_instance()
-except Exception as e:
-    print(f"CRITICAL: Failed to initialize SimulationManager: {e}")
-    manager = None
+# Defer manager initialization to avoid Redis connection issues during import
+manager = None
+
+def get_manager():
+    global manager
+    if manager is None:
+        try:
+            manager = SimulationManager.get_instance()
+        except Exception as e:
+            print(f"CRITICAL: Failed to initialize SimulationManager: {e}")
+            manager = None
+    return manager
 
 
 class SendMessageRequest(BaseModel):
@@ -29,6 +41,7 @@ async def get_simulation_status():
     """
     Returns whether the simulation managed by the SimulationManager is currently running.
     """
+    manager = get_manager()
     if manager is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -59,6 +72,7 @@ async def get_student_implementation_status():
             notebook_ready = False
 
         # Check if any quantum hosts in the current world require student implementation
+        manager = get_manager()
         if manager is None or not manager.is_running:
             # If no simulation running, use notebook status to decide whether to block the UI
             if notebook_ready:
@@ -148,6 +162,7 @@ async def send_simulation_message(message_data: SendMessageRequest):
     to the simulation via the SimulationManager.
     Requires the simulation to be running.
     """
+    manager = get_manager()
     if manager is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -184,6 +199,7 @@ async def stop_simulation():
     """
     Stops the simulation if it is currently running.
     """
+    manager = get_manager()
     if manager is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -228,6 +244,7 @@ async def execute_simulation(topology_id: str):
     Returns 500 Internal Server Error if starting fails.
     Accessible via both GET and POST requests.
     """
+    manager = get_manager()
     if manager is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

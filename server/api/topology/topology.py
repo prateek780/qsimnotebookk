@@ -128,7 +128,5 @@ async def list_all_topologies(owner=Header(None, alias='Authorization')):
     
     except Exception as e:
         logging.exception("Error retrieving topologies from Redis: %s", e)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Could not retrieve topology data due to a server error.",
-        )
+        # Return empty list if Redis is not available
+        return []

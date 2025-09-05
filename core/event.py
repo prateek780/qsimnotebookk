@@ -34,4 +34,5 @@ class Event:
             "node": self.node.name,
             "timestamp": self.timestamp,
             "data": {k: transform_val(v) for k, v in self.data.items()},
+            "log_level": self.log_level.value if hasattr(self.log_level, 'value') else str(self.log_level),
         }

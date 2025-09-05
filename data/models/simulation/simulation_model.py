@@ -39,7 +39,7 @@ class SimulationModal(JsonModel):
     class Meta:
         global_key_prefix = "network-sim"
         model_key_prefix = "simulation"
-        database = get_redis_conn()
+        database = None
 
 def save_simulation(simulation_data: Union[Dict[str, Any], SimulationModal]) -> str:
     """Save simulation data to Redis"""

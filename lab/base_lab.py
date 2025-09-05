@@ -11,7 +11,7 @@ from classical_network.presets.connection_presets import DEFAULT_PRESET
 from data.models.topology.node_model import HOST_TYPES, AdapterModal, ConnectionModal, HostModal, NetworkModal
 from data.models.topology.world_model import WorldModal
 from data.models.topology.zone_model import ZoneModal
-from quantum_network.host import QuantumHost
+from quantum_network.interactive_host import InteractiveQuantumHost as QuantumHost
 from server.api.simulation.manager import SimulationManager
 
 @dataclass

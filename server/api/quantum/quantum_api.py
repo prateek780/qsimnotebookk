@@ -104,7 +104,7 @@ async def inject_bb84_to_simulation():
         
         # Import the quantum host module
         sys.path.append(str(Path(__file__).parent.parent.parent.parent))
-        from quantum_network.host import QuantumHost
+        from quantum_network.interactive_host import InteractiveQuantumHost as QuantumHost
         
         # Store original methods for restoration
         original_prepare_qubit = QuantumHost.prepare_qubit

@@ -7,10 +7,19 @@ from config.config import get_config
 
 # Global Redis connection
 _redis_connection = None
+_redis_failed = False  # Cache failed state to avoid repeated warnings
 
 def get_redis_conn() -> Redis:
     """Get or create Redis connection (singleton pattern)"""
-    global _redis_connection
+    global _redis_connection, _redis_failed
+    
+    # Check if Redis is disabled
+    if os.getenv("USE_REDIS", "1") == "0":
+        return None
+    
+    # If we already failed, don't try again
+    if _redis_failed:
+        return None
     try:
         # Try to ping the existing connection
         if _redis_connection is not None:
@@ -29,10 +38,14 @@ def get_redis_conn() -> Redis:
     config = get_config()
     redis_config = config.redis
 
+    # Debug: Print Redis configuration
+    print(f"Redis config - Host: {redis_config.host}, Port: {redis_config.port}, DB: {redis_config.db}, SSL: {redis_config.ssl}")
+
     # Configure redis-om URL first
     scheme = "rediss" if redis_config.ssl else "redis"
     redis_url = f"{scheme}://{redis_config.username}:{redis_config.password.get_secret_value()}@{redis_config.host}:{redis_config.port}/{redis_config.db}"
     os.environ["REDIS_OM_URL"] = redis_url
+    print(f"Redis URL: {redis_url}")
 
     # Create new connection with connection pooling settings
     _redis_connection = Redis(
@@ -53,5 +66,8 @@ def get_redis_conn() -> Redis:
     except Exception as e:
         if _redis_connection is not None:
             _redis_connection.close()
-        raise Exception(f"Failed to connect to Redis: {str(e)}")
+        print(f"Warning: Redis connection failed: {str(e)}")
+        print("Backend will run without Redis functionality")
+        _redis_connection = None
+        _redis_failed = True  # Mark as failed to avoid repeated attempts
     return _redis_connection

@@ -40,6 +40,7 @@ class SimulationEventType(enum.Enum):
     CLASSICAL_DATA_RECEIVED = "classical_data_received"
     
     QKD_INITIALIZED = "qkd_initiated"
+    QKD_MESSAGE = "qkd_message"
     QUBIT_LOST = "qubit_lost"
     SHARED_KEY_GENERATED = "shared_key_generated"
     DATA_ENCRYPTED = "data_encrypted"

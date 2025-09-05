@@ -11,7 +11,7 @@ Usage:
     python complete_simulation.py
 
 Prerequisites:
-    1. Students must complete BB84 implementation in quantum_networking_interactive.ipynb
+    1. Students must complete BB84 implementation in quantum_networking_complete.ipynb
     2. Students must export their implementation using the notebook bridge
     3. student_implementation_status.json must exist and show implementation is ready
 """
@@ -67,7 +67,7 @@ class QuantumNetworkSimulation:
         if not readiness["ready"]:
             print(f"❌ Simulation not ready: {readiness['reason']}")
             print("\n💡 To fix this:")
-            print("1. Open quantum_networking_interactive.ipynb")
+            print("1. Open quantum_networking_complete.ipynb")
             print("2. Complete all BB84 implementation cells")
             print("3. Run the 'Export Implementation' cell")
             print("4. Re-run this simulation")

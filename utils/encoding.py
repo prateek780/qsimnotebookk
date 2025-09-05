@@ -10,5 +10,14 @@ def transform_val(v):
         return v
     elif hasattr(v, 'value'):  # Handle enum types like NodeType
         return v.value
+    elif hasattr(v, '__class__') and 'SimulationEventType' in str(v.__class__):
+        # Handle SimulationEventType enum specifically
+        return v.value
+    elif hasattr(v, '__class__') and 'SimulationEventType' in str(v.__class__.__name__):
+        # Handle SimulationEventType enum specifically (alternative check)
+        return v.value
+    elif hasattr(v, '__class__') and 'SimulationEventType' in str(type(v)):
+        # Handle SimulationEventType enum specifically (type check)
+        return v.value
     else:
         return str(v)

@@ -7,7 +7,6 @@ from core.enums import NetworkType, ZoneType
 from core.network import Network
 from quantum_network.adapter import QuantumAdapter
 from quantum_network.channel import QuantumChannel
-from quantum_network.host import QuantumHost
 from quantum_network.interactive_host import InteractiveQuantumHost
 from quantum_network.notebook_bridge import check_simulation_readiness, NotebookIntegration
 from quantum_network.repeater import QuantumRepeater
@@ -58,13 +57,15 @@ def build_network_1(zone1):
     connection_ar = ClassicConnection(
         node_1=alice,
         node_2=router,
-        config=DEFAULT_PRESET,
+        bandwidth=10,
+        latency=10,
         name="Alice-Router_Zone1 Connection",
     )
     connection_rb = ClassicConnection(
         node_1=router,
         node_2=bob,
-        config=DEFAULT_PRESET,
+        bandwidth=10,
+        latency=10,
         name="Router_Zone1-Bob Connection",
     )
     alice.add_connection(connection_ar)
@@ -120,13 +121,15 @@ def build_network_2(zone1):
     connection_ar = ClassicConnection(
         node_1=charlie,
         node_2=router,
-        config=DEFAULT_PRESET,
+        bandwidth=10,
+        latency=10,
         name="Alice-Router_Zone1 Connection",
     )
     connection_rb = ClassicConnection(
         node_1=router,
         node_2=dave,
-        config=DEFAULT_PRESET,
+        bandwidth=10,
+        latency=10,
         name="Router_Zone1-Bob Connection",
     )
     charlie.add_connection(connection_ar)
@@ -332,7 +335,8 @@ def add_hybrid(world: World):
     adapter_network1_connection = ClassicConnection(
         classic_router1,
         adapter1.local_classical_router,
-        DEFAULT_PRESET,
+        bandwidth=10,
+        latency=10,
         name="Router1 Adapter1 Connection",
     )
     adapter1.local_classical_router.add_connection(adapter_network1_connection)
@@ -356,7 +360,8 @@ def add_hybrid(world: World):
     adapter_network2_connection = ClassicConnection(
         classic_router2,
         adapter2.local_classical_router,
-        DEFAULT_PRESET,
+        bandwidth=10,
+        latency=10,
         name="Router2 Adapter2 Connection",
     )
     adapter2.local_classical_router.add_connection(adapter_network2_connection)

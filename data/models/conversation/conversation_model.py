@@ -26,7 +26,7 @@ class ChatLogMetadata(JsonModel):
     title: Optional[str] = Field(index=True, default=None) # Index title for searching
 
     class Meta:
-        database = get_redis_conn()
+        database = None
         global_key_prefix = "network-sim"
         model_key_prefix = "chat-log-meta"
 
@@ -39,7 +39,7 @@ class ChatMessage(JsonModel):
     content: str = Field(full_text_search=True, default="") # Enable full-text search on content
 
     class Meta:
-        database = get_redis_conn()
+        database = None
         global_key_prefix = "network-sim"
         model_key_prefix = "chat-message"
 
@@ -57,7 +57,7 @@ class AgentTurn(JsonModel):
     error_message: Optional[str] = Field(default=None)
 
     class Meta:
-        database = get_redis_conn()
+        database = None
         global_key_prefix = "network-sim"
         model_key_prefix = "agent-turn"
 

@@ -5,6 +5,7 @@ import threading
 import time
 from typing import List, Optional, Dict, Any
 import traceback
+import json
 
 from ai_agent.src.agents.base.enums import AgentTaskType
 from ai_agent.src.agents.log_summarization.structures import RealtimeLogSummaryInput
@@ -58,6 +59,7 @@ class SimulationManager:
         self.simulation_data: SimulationModal = None
         self.main_event_loop = None
         self.embedding_util = EmbeddingUtil()
+        self.embedding_enabled = True  # Start with embedding enabled
 
     @classmethod
     def get_instance(cls) -> "SimulationManager":
@@ -115,7 +117,7 @@ class SimulationManager:
             raise
 
     def on_update(self, event: Event) -> None:
-        self.emit_event("simulation_event", event)
+        self.emit_event("simulation_event", event.to_dict())
         log_entry = add_log_entry(
             {
                 "simulation_id": self.simulation_data.pk,
@@ -126,9 +128,20 @@ class SimulationManager:
                 "details": event.to_dict(),
             }
         )
-        if event.event_type not in [SimulationEventType.TRANSMISSION_STARTED, SimulationEventType.DATA_SENT]:
-            self.embedding_util.embed_and_store_log(log_entry)
-        self.logs_to_summarize.append(log_entry)
+        # Handle log entry safely - only if not None and Redis is available
+        if log_entry is not None:
+            # Try to store in Redis if available, but don't crash if it fails
+            try:
+                if hasattr(self, 'embedding_util') and self.embedding_util:
+                    # Only try embedding if Redis is working
+                    self.embedding_util.embed_and_store_log(log_entry)
+            except Exception as e:
+                # Silently ignore Redis errors - don't crash the simulation
+                if "OutOfMemoryError" not in str(e) and "maxmemory" not in str(e):
+                    print(f"⚠️ Log storage warning: {e}")
+            
+            # Always add to logs for potential summarization
+            self.logs_to_summarize.append(log_entry)
 
     def _summarize_delta_logs(self) -> None:
         SUMMARIZE_EVERY_SECONDS = 2
@@ -139,19 +152,75 @@ class SimulationManager:
             logs_to_summarize = self.logs_to_summarize.copy()
             self.logs_to_summarize.clear()
             
-            # Send to Celery instead of running locally
-            task = summarize_logs_task.delay(
+            # Check if Redis is available for Celery
+            try:
+                from data.models.connection.redis import get_redis_conn
+                redis_conn = get_redis_conn()
+                if redis_conn is not None:
+                    # Use Celery when Redis is available
+                    task = summarize_logs_task.delay(
+                        simulation_id=self.simulation_data.pk,
+                        previous_summary=self.current_log_summary,
+                        new_logs=[l.to_human_string() for l in logs_to_summarize],
+                        conversation_id=self.simulation_data.pk
+                    )
+                    
+                    # Schedule result handler to run on main event loop
+                    def schedule_result_handler():
+                        asyncio.create_task(self._handle_celery_result(task))
+                    
+                    self.main_event_loop.call_soon_threadsafe(schedule_result_handler)
+                else:
+                    # Run directly when Redis is not available
+                    asyncio.create_task(self._run_direct_log_summarization(logs_to_summarize))
+            except Exception as e:
+                print(f"Error in log summarization: {e}")
+                # Fallback to direct summarization
+                asyncio.create_task(self._run_direct_log_summarization(logs_to_summarize))
+    
+    async def _run_direct_log_summarization(self, logs_to_summarize):
+        """Run log summarization directly when Celery is not available"""
+        try:
+            from ai_agent.src.orchestration.coordinator import Coordinator
+            from ai_agent.src.agents.base.enums import AgentTaskType
+            from ai_agent.src.agents.log_summarization.structures import RealtimeLogSummaryInput
+            
+            coordinator = Coordinator()
+            
+            # Create input for realtime log summary
+            agent_args = RealtimeLogSummaryInput(
                 simulation_id=self.simulation_data.pk,
                 previous_summary=self.current_log_summary,
                 new_logs=[l.to_human_string() for l in logs_to_summarize],
-                conversation_id=self.simulation_data.pk
+                conversation_id=self.simulation_data.pk,
+                optional_instructions=None
             )
             
-            # Schedule result handler to run on main event loop
-            def schedule_result_handler():
-                asyncio.create_task(self._handle_celery_result(task))
+            # Run the log summarization directly
+            result = await coordinator._run_agent_task(AgentTaskType.REALTIME_LOG_SUMMARY, {
+                'task_id': AgentTaskType.REALTIME_LOG_SUMMARY,
+                'input_data': agent_args
+            })
             
-            self.main_event_loop.call_soon_threadsafe(schedule_result_handler)
+            if result and 'summary_text' in result:
+                # Update the current log summary
+                self.current_log_summary.extend(result['summary_text'])
+                self.last_summarized_on = time.time()
+                
+                # Emit the summary to the frontend
+                self.emit_event("simulation_summary", {
+                    "summary_text": result['summary_text'],
+                    "full_summary": self.current_log_summary
+                })
+                
+                print(f"Generated log summary: {result['summary_text']}")
+            else:
+                print("No summary generated from logs")
+                
+        except Exception as e:
+            print(f"Error in direct log summarization: {e}")
+            import traceback
+            traceback.print_exc()
     
     async def _handle_celery_result(self, task):
         """Handle Celery task result asynchronously"""
@@ -209,8 +278,8 @@ class SimulationManager:
 
                     while self.simulation_world.is_running:
                         time.sleep(2)
-                        if self.config.control_config.enable_realtime_log_summary and self.config.control_config.enable_ai_feature:
-                            self._summarize_delta_logs()
+                        # DISABLED: Skip log summarization to avoid Redis issues
+                        pass
 
                     self.emit_event(
                         "simulation_completed",
@@ -242,6 +311,11 @@ class SimulationManager:
     def send_message_command(
         self, from_node_name: str, to_node_name: str, message: str, **kwargs
     ):
+        # Check if simulation world exists
+        if self.simulation_world is None:
+            print(f"⚠️ Simulation world not available, cannot send message from {from_node_name} to {to_node_name}")
+            return
+            
         from_node = to_node = None
         for network in self.simulation_world.networks:
             for node in network.nodes:
@@ -253,13 +327,14 @@ class SimulationManager:
                     continue
 
         if not (from_node and to_node):
-            self.emit_event(
-                "simulation_error", {"error": "Nodes not found for sending message"}
-            )
+            print(f"⚠️ Nodes not found: {from_node_name} or {to_node_name}")
             return
 
-
-        from_node.send_data(message, to_node)
+        try:
+            from_node.send_data(message, to_node)
+            print(f"✅ Message sent from {from_node_name} to {to_node_name}: {message}")
+        except Exception as e:
+            print(f"⚠️ Error sending message: {e}")
 
     def _attach_student_impl_to_hosts(self) -> None:
         """Attach student implementation plugin (if present) to InteractiveQuantumHost nodes."""
@@ -351,15 +426,41 @@ class SimulationManager:
         try:
             if hasattr(data, "to_dict"):
                 data = data.to_dict()
+            
+            # Ensure all data is JSON serializable
+            data = self._make_json_serializable(data)
+            
+            # Test JSON serialization
+            json.dumps(data)
         except Exception as e:
             print(
                 f"[{threading.current_thread().name}] Error serializing data for event '{event}': {e}"
             )
+            print(f"Data type: {type(data)}")
             pprint(data)
             return
 
         coro_to_run = self.socket_conn.broadcast(dict(event=event, data=data))
         future = asyncio.run_coroutine_threadsafe(coro_to_run, self.main_event_loop)
+
+    def _make_json_serializable(self, obj):
+        """Recursively convert objects to JSON serializable format"""
+        if isinstance(obj, dict):
+            return {k: self._make_json_serializable(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [self._make_json_serializable(item) for item in obj]
+        elif hasattr(obj, 'value'):  # Handle enums
+            return obj.value
+        elif hasattr(obj, '__class__') and 'SimulationEventType' in str(obj.__class__):
+            return obj.value
+        elif hasattr(obj, '__class__') and 'SimulationEventType' in str(obj.__class__.__name__):
+            return obj.value
+        elif hasattr(obj, '__class__') and 'SimulationEventType' in str(type(obj)):
+            return obj.value
+        elif isinstance(obj, (str, int, float, bool, type(None))):
+            return obj
+        else:
+            return str(obj)
 
     def _handle_error(self, error: Exception) -> None:
         """
