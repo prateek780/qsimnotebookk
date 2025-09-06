@@ -49,7 +49,7 @@ except Exception as e:
     print(f"⚠️ Could not clear Redis memory: {e}")
 
 print(f"Redis configured: {os.environ['REDIS_HOST']}:{os.environ['REDIS_PORT']}")
-os.environ["GOOGLE_API_KEY"] = "AIzaSyCDR-02KzCcOwgcIGP1V4v_CiHcn3qwr1s"
+os.environ["GOOGLE_API_KEY"] = "Use your API key here"
 os.environ["OPENAI_API_KEY"] = os.environ["GOOGLE_API_KEY"]
 os.environ["LANGCHAIN_API_KEY"] = os.environ["GOOGLE_API_KEY"]
 # Disable embedding to prevent Redis memory issues
