@@ -1,0 +1,77 @@
+================================================================================
+QUANTUM NETWORK SIMULATION LOG
+Simulation: test1
+Started: 2025-09-05 13:14:41
+================================================================================
+
+[13:14:51.300] SimulationEventType.PACKET_TRANSMITTED | ClassicalHost-10-ClassicalRouter-6 | {'packet': <classical_network.packet.ClassicDataPacket object at 0x0000020A19143A10>}
+[13:14:51.303] SimulationEventType.DATA_SENT | ClassicalHost-10 | {'data': 'hi message', 'destination': Host - 'ClassicalHost-1'}
+[13:14:54.516] SimulationEventType.PACKET_TRANSMITTED | Router - 'ClassicalRouter-6' <quantum_network.adapter.QuantumAdapter object at 0x0000020A192C4F50> Connection | {'packet': <classical_network.packet.ClassicDataPacket object at 0x0000020A19143A10>}
+[13:14:54.519] SimulationEventType.PACKET_RECEIVED | ClassicalRouter-6 | {'packet': <classical_network.packet.ClassicDataPacket object at 0x0000020A19143A10>}
+[13:14:57.526] SimulationEventType.INFO | QuantumHost-8 | STUDENT'S BB84 IMPLEMENTATION: Starting protocol with 16 qubits using StudentQuantumHost class
+[13:14:57.532] SimulationEventType.INFO | QuantumHost-8 | Student Alice data: Generated 16 bits and 16 bases
+[13:14:57.535] SimulationEventType.INFO | QuantumHost-8 | STUDENT ALICE: Prepared 16 qubits using YOUR bb84_send_qubits() method from notebook!
+[13:14:57.540] SimulationEventType.DATA_SENT | QuantumHost-8 | STUDENT BB84: Sending 16 encoded qubits from YOUR bb84_send_qubits() method through quantum channel
+[13:14:57.547] SimulationEventType.INFO | QuantumHost-8 | BB84 Progress: 1/16 qubits sent
+[13:14:57.557] SimulationEventType.INFO | QuantumHost-8 | BB84 Progress: 11/16 qubits sent
+[13:14:57.564] SimulationEventType.DATA_SENT | QuantumHost-8 | All 16 qubits sent successfully through quantum channel
+[13:14:57.568] SimulationEventType.INFO | QuantumHost-8 | {'type': 'qkd_reconcile_bases_sent', 'host': 'QuantumHost-8', 'count': 16}
+[13:14:57.571] SimulationEventType.PACKET_TRANSMITTED | QC_Router_Connection | {'packet': <quantum_network.packet.QKDTransmissionPacket object at 0x0000020A19142E40>}
+[13:14:57.577] SimulationEventType.INFO | QuantumHost-8 | Student Alice: Triggering reconciliation - sending bases to Bob
+[13:14:57.582] SimulationEventType.QKD_INITIALIZED | QuantumAdapter-9 | {'with_adapter': <quantum_network.adapter.QuantumAdapter object at 0x0000020A19269E80>}
+[13:14:57.585] SimulationEventType.PACKET_RECEIVED | QC_Router_QuantumAdapter-9 | {'packet': <classical_network.packet.ClassicDataPacket object at 0x0000020A19143A10>}
+[13:15:02.088] SimulationEventType.DATA_RECEIVED | QuantumHost-2 | STUDENT BOB: Started receiving qubits using YOUR process_received_qbit() method from notebook!
+[13:15:02.091] SimulationEventType.DATA_RECEIVED | QuantumHost-2 | STUDENT BOB: Received qubit 1/0 using YOUR process_received_qbit() method from notebook!
+[13:15:02.094] SimulationEventType.INFO | QuantumHost-2 | STUDENT BOB: Received all 1 qubits, ready for YOUR bb84_reconcile_bases() method!
+[13:15:02.098] SimulationEventType.DATA_RECEIVED | QuantumHost-2 | STUDENT BOB: Received qubit 2/0 using YOUR process_received_qbit() method from notebook!
+[13:15:02.101] SimulationEventType.INFO | QuantumHost-2 | STUDENT BOB: Received all 2 qubits, ready for YOUR bb84_reconcile_bases() method!
+[13:15:02.104] SimulationEventType.DATA_RECEIVED | QuantumHost-2 | STUDENT BOB: Received qubit 3/0 using YOUR process_received_qbit() method from notebook!
+[13:15:02.109] SimulationEventType.INFO | QuantumHost-2 | STUDENT BOB: Received all 3 qubits, ready for YOUR bb84_reconcile_bases() method!
+[13:15:02.113] SimulationEventType.DATA_RECEIVED | QuantumHost-2 | STUDENT BOB: Received qubit 4/0 using YOUR process_received_qbit() method from notebook!
+[13:15:02.117] SimulationEventType.INFO | QuantumHost-2 | STUDENT BOB: Received all 4 qubits, ready for YOUR bb84_reconcile_bases() method!
+[13:15:02.120] SimulationEventType.DATA_RECEIVED | QuantumHost-2 | STUDENT BOB: Received qubit 5/0 using YOUR process_received_qbit() method from notebook!
+[13:15:02.123] SimulationEventType.INFO | QuantumHost-2 | STUDENT BOB: Received all 5 qubits, ready for YOUR bb84_reconcile_bases() method!
+[13:15:02.129] SimulationEventType.DATA_RECEIVED | QuantumHost-2 | STUDENT BOB: Received qubit 6/0 using YOUR process_received_qbit() method from notebook!
+[13:15:02.131] SimulationEventType.INFO | QuantumHost-2 | STUDENT BOB: Received all 6 qubits, ready for YOUR bb84_reconcile_bases() method!
+[13:15:02.135] SimulationEventType.DATA_RECEIVED | QuantumHost-2 | STUDENT BOB: Received qubit 7/0 using YOUR process_received_qbit() method from notebook!
+[13:15:02.137] SimulationEventType.INFO | QuantumHost-2 | STUDENT BOB: Received all 7 qubits, ready for YOUR bb84_reconcile_bases() method!
+[13:15:02.143] SimulationEventType.DATA_RECEIVED | QuantumHost-2 | STUDENT BOB: Received qubit 8/0 using YOUR process_received_qbit() method from notebook!
+[13:15:02.147] SimulationEventType.INFO | QuantumHost-2 | STUDENT BOB: Received all 8 qubits, ready for YOUR bb84_reconcile_bases() method!
+[13:15:02.150] SimulationEventType.DATA_RECEIVED | QuantumHost-2 | STUDENT BOB: Received qubit 9/0 using YOUR process_received_qbit() method from notebook!
+[13:15:02.153] SimulationEventType.INFO | QuantumHost-2 | STUDENT BOB: Received all 9 qubits, ready for YOUR bb84_reconcile_bases() method!
+[13:15:02.162] SimulationEventType.DATA_RECEIVED | QuantumHost-2 | STUDENT BOB: Received qubit 10/0 using YOUR process_received_qbit() method from notebook!
+[13:15:02.166] SimulationEventType.INFO | QuantumHost-2 | STUDENT BOB: Received all 10 qubits, ready for YOUR bb84_reconcile_bases() method!
+[13:15:02.169] SimulationEventType.DATA_RECEIVED | QuantumHost-2 | STUDENT BOB: Received qubit 11/0 using YOUR process_received_qbit() method from notebook!
+[13:15:02.173] SimulationEventType.INFO | QuantumHost-2 | STUDENT BOB: Received all 11 qubits, ready for YOUR bb84_reconcile_bases() method!
+[13:15:02.178] SimulationEventType.DATA_RECEIVED | QuantumHost-2 | STUDENT BOB: Received qubit 12/0 using YOUR process_received_qbit() method from notebook!
+[13:15:02.181] SimulationEventType.INFO | QuantumHost-2 | STUDENT BOB: Received all 12 qubits, ready for YOUR bb84_reconcile_bases() method!
+[13:15:02.186] SimulationEventType.DATA_RECEIVED | QuantumHost-2 | STUDENT BOB: Received qubit 13/0 using YOUR process_received_qbit() method from notebook!
+[13:15:02.189] SimulationEventType.INFO | QuantumHost-2 | STUDENT BOB: Received all 13 qubits, ready for YOUR bb84_reconcile_bases() method!
+[13:15:02.193] SimulationEventType.DATA_RECEIVED | QuantumHost-2 | STUDENT BOB: Received qubit 14/0 using YOUR process_received_qbit() method from notebook!
+[13:15:02.197] SimulationEventType.INFO | QuantumHost-2 | STUDENT BOB: Received all 14 qubits, ready for YOUR bb84_reconcile_bases() method!
+[13:15:02.200] SimulationEventType.DATA_RECEIVED | QuantumHost-2 | STUDENT BOB: Received qubit 15/0 using YOUR process_received_qbit() method from notebook!
+[13:15:02.203] SimulationEventType.INFO | QuantumHost-2 | STUDENT BOB: Received all 15 qubits, ready for YOUR bb84_reconcile_bases() method!
+[13:15:02.208] SimulationEventType.DATA_RECEIVED | QuantumHost-2 | STUDENT BOB: Received qubit 16/0 using YOUR process_received_qbit() method from notebook!
+[13:15:02.211] SimulationEventType.INFO | QuantumHost-2 | STUDENT BOB: Received all 16 qubits, ready for YOUR bb84_reconcile_bases() method!
+[13:15:02.215] SimulationEventType.INFO | QuantumHost-2 | {'type': 'qkd_reconcile_bases_received', 'host': 'QuantumHost-2', 'count': 16}
+[13:15:02.219] SimulationEventType.INFO | QuantumHost-2 | STUDENT BOB: Starting reconciliation process using YOUR bb84_reconcile_bases() method from notebook!
+[13:15:02.223] SimulationEventType.INFO | QuantumHost-2 | STUDENT BOB bb84_reconcile_bases(): Found 7 matching bases out of 16 (Efficiency: 43.8%) using YOUR code!
+[13:15:02.226] SimulationEventType.PACKET_TRANSMITTED | QC_Router_Connection | {'packet': <quantum_network.packet.QKDTransmissionPacket object at 0x0000020A19235E50>}
+[13:15:02.229] SimulationEventType.INFO | QuantumHost-2 | Student Bob: Reconciliation completed - found 7 shared bases
+[13:15:02.232] SimulationEventType.DATA_RECEIVED | QuantumAdapter-4 | {'packet': <quantum_network.packet.QKDTransmissionPacket object at 0x0000020A19142E40>}
+[13:15:02.234] SimulationEventType.PACKET_RECEIVED | QC_Router_QuantumAdapter-4 | {'packet': <quantum_network.packet.QKDTransmissionPacket object at 0x0000020A19142E40>}
+[13:15:02.238] SimulationEventType.INFO | QuantumHost-8 | {'type': 'qkd_shared_bases_indices_received', 'host': 'QuantumHost-8', 'count': 7}
+[13:15:02.241] SimulationEventType.INFO | QuantumHost-8 | {'type': 'qkd_shared_bases_indices_set', 'host': 'QuantumHost-8', 'count': 7}
+[13:15:02.245] SimulationEventType.INFO | QuantumHost-8 | {'type': 'qkd_estimate_error_rate_sent', 'host': 'QuantumHost-8', 'sample_size': 3}
+[13:15:02.247] SimulationEventType.PACKET_TRANSMITTED | QC_Router_Connection | {'packet': <quantum_network.packet.QKDTransmissionPacket object at 0x0000020A194DC910>}
+[13:15:02.249] SimulationEventType.DATA_RECEIVED | QuantumAdapter-9 | {'packet': <quantum_network.packet.QKDTransmissionPacket object at 0x0000020A19235E50>}
+[13:15:02.251] SimulationEventType.PACKET_RECEIVED | QC_Router_QuantumAdapter-9 | {'packet': <quantum_network.packet.QKDTransmissionPacket object at 0x0000020A19235E50>}
+[13:15:06.755] SimulationEventType.INFO | QuantumHost-2 | {'type': 'qkd_estimate_error_rate_received', 'host': 'QuantumHost-2', 'sample_size': 3}
+[13:15:06.760] SimulationEventType.INFO | QuantumHost-2 | STUDENT BOB: Starting error rate estimation using YOUR bb84_estimate_error_rate() method from notebook!
+[13:15:06.764] SimulationEventType.INFO | QuantumHost-2 | STUDENT BOB bb84_estimate_error_rate(): 0.0% error rate (0/3 errors) using YOUR implementation from notebook!
+[13:15:06.768] SimulationEventType.SHARED_KEY_GENERATED | QuantumHost-2 | BB84 QKD protocol completed successfully
+[13:15:06.770] SimulationEventType.PACKET_TRANSMITTED | QC_Router_Connection | {'packet': <quantum_network.packet.QKDTransmissionPacket object at 0x0000020A1AB78180>}
+[13:15:06.775] SimulationEventType.INFO | QuantumHost-2 | BB84 Protocol Complete! All YOUR student methods executed successfully from notebook!
+[13:15:06.779] SimulationEventType.INFO | QuantumHost-2 | STUDENT BB84 IMPLEMENTATION COMPLETE! All YOUR methods executed successfully from notebook: bb84_send_qubits(), process_received_qbit(), bb84_reconcile_bases(), bb84_estimate_error_rate()
+[13:15:06.782] SimulationEventType.DATA_RECEIVED | QuantumAdapter-4 | {'packet': <quantum_network.packet.QKDTransmissionPacket object at 0x0000020A194DC910>}
+[13:15:06.783] SimulationEventType.PACKET_RECEIVED | QC_Router_QuantumAdapter-4 | {'packet': <quantum_network.packet.QKDTransmissionPacket object at 0x0000020A194DC910>}

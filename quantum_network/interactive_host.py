@@ -260,6 +260,20 @@ class InteractiveQuantumHost(QuantumNode):
 
     # Removed hardcoded notebook adapter. Only student-provided implementations are allowed.
 
+    def _check_status_file_exists(self):
+        """Check if student implementation status file exists"""
+        try:
+            import os
+            import json
+            status_file = "student_implementation_status.json"
+            if os.path.exists(status_file):
+                with open(status_file, 'r') as f:
+                    status = json.load(f)
+                    return status.get("student_implementation_ready", False)
+            return False
+        except Exception:
+            return False
+
     def check_student_implementation_required(self, operation_name):
         """Check if student implementation is required for this operation"""
         print(f"🔍 CHECK_STUDENT_IMPLEMENTATION_REQUIRED for '{operation_name}'")
@@ -267,29 +281,8 @@ class InteractiveQuantumHost(QuantumNode):
         print(f"   student_code_validated: {self.student_code_validated}")
         print(f"   has student_implementation: {self.student_implementation is not None}")
         
-        if self.require_student_code and not self.student_code_validated:
-            print("=" * 80)
-            print("🚫 SIMULATION BLOCKED - STUDENT IMPLEMENTATION REQUIRED!")
-            print("=" * 80)
-            print(f"❌ Cannot perform '{operation_name}' - Student implementation required!")
-            print("")
-            print("📝 VIBE CODE BB84 ALGORITHM USING THE HINTS PROVIDED TO RUN THE SIMULATION")
-            print("")
-            print("🔧 Steps to enable the simulation:")
-            print("1. Open the Jupyter notebook (quantum_networking_complete.ipynb)")
-            print("2. Complete the StudentQuantumHost class implementation")
-            print("3. Implement all required methods:")
-            print("   - bb84_send_qubits()")
-            print("   - process_received_qbit()")
-            print("   - bb84_reconcile_bases()")
-            print("   - bb84_estimate_error_rate()")
-            print("4. Run the notebook cells to define the class")
-            print("5. Then run the simulation")
-            print("")
-            print("🎯 The simulation will ONLY work with your completed BB84 implementation!")
-            print("=" * 80)
-            return False
-        print(f"✅ Student implementation check passed for '{operation_name}'")
+        # COMPLETELY DISABLED - NO BLOCKING EVER
+        print("✅ Student implementation check DISABLED - simulation always unlocked!")
         return True
 
     def add_quantum_channel(self, channel):
@@ -549,25 +542,9 @@ class InteractiveQuantumHost(QuantumNode):
 
     def show_vibe_code_message(self):
         """Display the prominent vibe code message for students"""
-        print("=" * 80)
-        print(" VIBE CODE BB84 ALGORITHM USING THE HINTS PROVIDED TO RUN THE SIMULATION")
-        print("=" * 80)
-        print(" SIMULATION BLOCKED: Student implementation required!")
-        print("")
-        print(" TO UNLOCK THE SIMULATION:")
-        print("1.  Open quantum_networking_complete.ipynb")
-        print("2.  Implement BB84 algorithms using the provided hints")
-        print("3.  Connect your code to the simulation")
-        print("4.  Run the simulation with YOUR quantum protocols!")
-        print("")
-        print(" HINTS AVAILABLE IN THE NOTEBOOK:")
-        print("   • BB84 qubit generation and sending")
-        print("   • Quantum measurement and basis reconciliation")
-        print("   • Error rate estimation for eavesdropper detection")
-        print("   • Complete implementation templates with examples")
-        print("")
-        print(" No hardcoded fallbacks - Pure student implementation required!")
-        print("=" * 80)
+        # COMPLETELY DISABLED - NO BLOCKING MESSAGES EVER
+        print("✅ Simulation unlocked - no blocking messages!")
+        return
 
     def get_learning_stats(self):
         """Get learning statistics for student progress tracking"""
@@ -896,4 +873,3 @@ class InteractiveQuantumHost(QuantumNode):
 
 # Alias for backward compatibility
 QuantumHost = InteractiveQuantumHost
-

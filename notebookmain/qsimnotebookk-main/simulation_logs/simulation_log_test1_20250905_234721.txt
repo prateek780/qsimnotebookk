@@ -1,0 +1,10 @@
+================================================================================
+QUANTUM NETWORK SIMULATION LOG
+Simulation: test1
+Started: 2025-09-05 23:47:21
+================================================================================
+
+[23:47:32.002] SimulationEventType.PACKET_TRANSMITTED | ClassicalHost-10-ClassicalRouter-6 | {'packet': <classical_network.packet.ClassicDataPacket object at 0x00000185754C2E40>}
+[23:47:32.009] SimulationEventType.DATA_SENT | ClassicalHost-10 | {'data': 'hi message', 'destination': Host - 'ClassicalHost-1'}
+[23:47:32.317] SimulationEventType.PACKET_TRANSMITTED | Router - 'ClassicalRouter-6' <quantum_network.adapter.QuantumAdapter object at 0x0000018575318410> Connection | {'packet': <classical_network.packet.ClassicDataPacket object at 0x00000185754C2E40>}
+[23:47:32.324] SimulationEventType.PACKET_RECEIVED | ClassicalRouter-6 | {'packet': <classical_network.packet.ClassicDataPacket object at 0x00000185754C2E40>}

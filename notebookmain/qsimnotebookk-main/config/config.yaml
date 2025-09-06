@@ -1,0 +1,42 @@
+# llm_config.yaml
+llm:
+  provider: "openai"
+  model: "gemini-2.5-flash"
+  lite_model: "gemini-2.0-flash"
+  api_key: "${OPENAI_API_KEY}"
+  base_url: "https://generativelanguage.googleapis.com/v1beta/openai/"
+  timeout: 60
+  temperature: 0.2
+  max_tokens: 1000
+  retry_attempts: 3
+
+  # LangChain Config
+  langchain_api_key: "${LANGCHAIN_API_KEY}"
+  langchain_project_name: "simulator_agent_dev"
+  langchain_tracing: true
+  
+simulator:
+  # Disable to save token usage
+  disable_token_usage: false
+
+agents:
+  agent_validation:
+    enabled: true
+    regenerate_on_invalid: true
+
+control_config:
+  enable_realtime_log_summary: true
+  enable_ai_feature: true
+
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+redis:
+  host: "${REDIS_HOST}"
+  port: "${REDIS_PORT}"
+  username: "${REDIS_USERNAME}"
+  password: "${REDIS_PASSWORD}"
+  db: "${REDIS_DB}"
+  ssl: "${REDIS_SSL}"
+  connection_timeout: 10

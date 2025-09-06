@@ -1,0 +1,73 @@
+services:
+  python-server:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.python
+    container_name: python-server
+    # ports:
+    #   - "8000:8000"
+    depends_on:
+      - redis
+    env_file:
+      - .dockerenv
+    volumes:
+      - .:/app
+    networks:
+      - app-network
+
+  celery:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.python
+    command: celery -A tasks worker --loglevel=info
+    container_name: celery
+    volumes:
+      - .:/app
+    depends_on:
+      - python-server
+    env_file:
+      - .dockerenv
+    networks:
+      - app-network
+
+
+  redis:
+    image: redis/redis-stack-server:latest
+    container_name: redis
+    volumes:
+      - redis-data:/data
+    networks:
+      - app-network
+
+  # Redis monitoring
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: redis-commander
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    ports:
+      - "8081:8081"
+    depends_on:
+      - redis
+    networks:
+      - app-network
+      
+  caddy:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.caddy
+    container_name: caddy
+    ports:
+      - "8001:80"
+    depends_on:
+      - python-server
+      # - ui-builder
+    networks:
+      - app-network
+
+volumes:
+  redis-data:
+
+networks:
+  app-network:
+    driver: bridge

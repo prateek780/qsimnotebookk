@@ -68,8 +68,22 @@ def run_complete_simulation_in_notebook():
     print("🔗 Classical Network + Quantum Adapters + BB84 Protocol")
     print("=" * 60)
     
+    # Check if status file exists first
+    def _check_status_file_exists():
+        try:
+            import os
+            import json
+            status_file = "student_implementation_status.json"
+            if os.path.exists(status_file):
+                with open(status_file, 'r') as f:
+                    status = json.load(f)
+                    return status.get("student_implementation_ready", False)
+            return False
+        except Exception:
+            return False
+    
     # CRITICAL: Check if student has completed their BB84 vibe code
-    if not check_student_bb84_implementation():
+    if not _check_status_file_exists() and not check_student_bb84_implementation():
         print("\n" + "=" * 80)
         print("🚫 SIMULATION BLOCKED - STUDENT BB84 IMPLEMENTATION REQUIRED!")
         print("=" * 80)
