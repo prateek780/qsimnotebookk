@@ -72,13 +72,19 @@ class StudentQuantumHost:
         self.shared_bases_indices = []  # Shared bases indices from reconciliation
         self.shared_bits = []     # Shared bits from reconciliation
         
+        # Additional data structures from second file
+        self.random_bits = []              # Random classical bits generated
+        self.measurement_bases = []        # Measurement bases chosen for encoding
+        self.quantum_states = []           # Quantum states encoded
+        self.received_bases = []           # Measurement bases used when receiving qubits
+        
         print(f"{self.name} initialized! Ready for BB84 protocol!")
         print(f"{self.name} using STUDENT'S BB84 IMPLEMENTATION from notebook!")
         print(f"{self.name} methods: bb84_send_qubits(), process_received_qbit(), bb84_reconcile_bases(), bb84_estimate_error_rate()")
     
     def bb84_send_qubits(self, num_qubits):
         """
-        Alice's BB84 implementation: Prepare and send qubits
+        Sender's BB84 implementation: Prepare and send qubits
         
         Args:
             num_qubits: Number of qubits to prepare
@@ -92,20 +98,38 @@ class StudentQuantumHost:
         self.alice_bits = []
         self.alice_bases = []
         self.encoded_qubits = []
+        self.random_bits = []
+        self.measurement_bases = []
+        self.quantum_states = []
         
-        # Generate random bits and bases
+        # Process each qubit
         for i in range(num_qubits):
-            # Generate random bit (0 or 1)
-            bit = random.randint(0, 1)
-            self.alice_bits.append(bit)
+            # Create a random classical value (0 or 1)
+            classical_bit = random.randint(0, 1)
             
-            # Generate random basis (0 for Z, 1 for X)
-            basis = random.randint(0, 1)
-            self.alice_bases.append(basis)
+            # Choose a random preparation setting (basis: 0 for rectilinear, 1 for diagonal)
+            preparation_basis = random.randint(0, 1)
             
-            # Encode the qubit
-            qubit = prepare_quantum_state(bit, basis)
-            self.encoded_qubits.append(qubit)
+            # Transform classical value into quantum state using chosen setting
+            if preparation_basis == 0:  # Rectilinear basis (Z-basis)
+                if classical_bit == 0:
+                    quantum_state = "|0⟩"  # |0⟩ state
+                else:
+                    quantum_state = "|1⟩"  # |1⟩ state
+            else:  # Diagonal basis (X-basis)
+                if classical_bit == 0:
+                    quantum_state = "|+⟩"  # |+⟩ state = (|0⟩ + |1⟩)/√2
+                else:
+                    quantum_state = "|-⟩"  # |-⟩ state = (|0⟩ - |1⟩)/√2
+            
+            # Store results in both naming conventions for compatibility
+            self.alice_bits.append(classical_bit)
+            self.alice_bases.append(preparation_basis)
+            self.encoded_qubits.append(quantum_state)
+            
+            self.random_bits.append(classical_bit)
+            self.measurement_bases.append(preparation_basis)
+            self.quantum_states.append(quantum_state)
         
         print(f"{self.name} prepared {len(self.encoded_qubits)} qubits")
         print(f"   Bits: {self.alice_bits[:10]}{'...' if len(self.alice_bits) > 10 else ''}")
@@ -115,7 +139,7 @@ class StudentQuantumHost:
     
     def process_received_qbit(self, qbit, from_channel):
         """
-        Bob's BB84 implementation: Receive and measure qubits
+        Receiver's BB84 implementation: Receive and measure qubits
         
         Args:
             qbit: The received quantum state
@@ -124,13 +148,42 @@ class StudentQuantumHost:
         Returns:
             True if successful
         """
-        # Choose random measurement basis
+        # Select a random measurement setting (0 for rectilinear, 1 for diagonal)
         measurement_basis = random.randint(0, 1)
-        self.basis_choices.append(measurement_basis)
         
-        # Measure the qubit
-        measurement_result = measure_quantum_state(qbit, measurement_basis)
-        self.measurement_outcomes.append(measurement_result)
+        # Record the chosen setting in both naming conventions for compatibility
+        self.basis_choices.append(measurement_basis)
+        self.received_bases.append(measurement_basis)
+        
+        # Perform measurement of the received quantum state using the chosen setting
+        if measurement_basis == 0:  # Rectilinear basis (Z-basis) measurement
+            if qbit == "|0⟩":
+                outcome = 0  # Measuring |0⟩ in Z-basis always gives 0
+            elif qbit == "|1⟩":
+                outcome = 1  # Measuring |1⟩ in Z-basis always gives 1
+            elif qbit == "|+⟩":
+                outcome = random.randint(0, 1)  # |+⟩ in Z-basis: 50% chance of 0 or 1
+            elif qbit == "|-⟩":
+                outcome = random.randint(0, 1)  # |-⟩ in Z-basis: 50% chance of 0 or 1
+            else:
+                # Handle unexpected quantum state
+                outcome = random.randint(0, 1)
+                
+        else:  # Diagonal basis (X-basis) measurement
+            if qbit == "|+⟩":
+                outcome = 0  # Measuring |+⟩ in X-basis always gives 0
+            elif qbit == "|-⟩":
+                outcome = 1  # Measuring |-⟩ in X-basis always gives 1
+            elif qbit == "|0⟩":
+                outcome = random.randint(0, 1)  # |0⟩ in X-basis: 50% chance of 0 or 1
+            elif qbit == "|1⟩":
+                outcome = random.randint(0, 1)  # |1⟩ in X-basis: 50% chance of 0 or 1
+            else:
+                # Handle unexpected quantum state
+                outcome = random.randint(0, 1)
+        
+        # Store the resulting outcome
+        self.measurement_outcomes.append(outcome)
         
         return True
     
@@ -146,15 +199,25 @@ class StudentQuantumHost:
         """
         print(f"{self.name} reconciling bases...")
         
+        # Create empty collections for matching indices and corresponding bit values
         shared_indices = []
         shared_bits = []
         
-        # Find indices where bases match
-        for i, (my_basis, their_basis) in enumerate(zip(self.basis_choices, their_bases)):
+        # Iterate through both sets of basis choices simultaneously with their positions
+        for position, (my_basis, their_basis) in enumerate(zip(self.basis_choices, their_bases)):
+            # Check if the two bases are the same
             if my_basis == their_basis:
-                shared_indices.append(i)
-                if i < len(self.measurement_outcomes):
-                    shared_bits.append(self.measurement_outcomes[i])
+                # Record the index where bases align
+                shared_indices.append(position)
+                
+                # If a corresponding measurement result exists, record the measured value
+                if position < len(self.measurement_outcomes):
+                    shared_bits.append(self.measurement_outcomes[position])
+        
+        # Display summary after completing the comparison
+        total_comparisons = min(len(self.basis_choices), len(their_bases))
+        matches_found = len(shared_indices)
+        match_proportion = matches_found / total_comparisons if total_comparisons > 0 else 0
         
         print(f"{self.name} found {len(shared_indices)} matching bases out of {len(their_bases)}")
         print(f"   Efficiency: {len(shared_indices)/len(their_bases)*100:.1f}%")
@@ -177,15 +240,24 @@ class StudentQuantumHost:
         """
         print(f"{self.name} estimating error rate...")
         
+        # Set up counters to track comparisons and discrepancies
         errors = 0
         comparisons = 0
         
         for bit, index in their_bits_sample:
+            # Check if the position is valid relative to this host's recorded outcomes
             if 0 <= index < len(self.measurement_outcomes):
+                # Increase the comparison count for valid positions
                 comparisons += 1
-                if self.measurement_outcomes[index] != bit:
+                
+                # Get the recorded outcome for this position
+                recorded_outcome = self.measurement_outcomes[index]
+                
+                # If the recorded outcome does not match the provided reference bit, increase error count
+                if recorded_outcome != bit:
                     errors += 1
         
+        # Calculate error rate as ratio of errors to comparisons, defaulting to zero if no comparisons
         error_rate = (errors / comparisons) if comparisons > 0 else 0.0
         
         print(f"{self.name} error rate: {error_rate:.1%} ({errors}/{comparisons} errors)")
