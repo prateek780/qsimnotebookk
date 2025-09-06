@@ -96,6 +96,9 @@ class InteractiveQuantumHost(QuantumNode):
         # Optional back-reference to the owning adapter
         self.adapter = None
         
+        # Enhanced bridge for student implementations
+        self.enhanced_bridge = None
+        
         print(f" Interactive Quantum Host '{name}' created!")
         print(f" Protocol: {protocol}")
         
@@ -106,13 +109,18 @@ class InteractiveQuantumHost(QuantumNode):
                 print(" Loaded student implementation plugin from file")
                 self.validate_student_implementation()
             else:
-                print(" STUDENT IMPLEMENTATION REQUIRED!")
-                print(" VIBE CODE BB84 ALGORITHM USING THE HINTS PROVIDED TO RUN THE SIMULATION")
-                print(" This simulation will NOT work without student BB84 code!")
-                print(" Export your student implementation plugin from the notebook to enable the simulation.")
-                print(" Open quantum_networking_complete.ipynb for the export helper cell.")
-                print(" No hardcoded fallbacks available!")
-                self.student_code_validated = False
+                # Try to load student implementation using enhanced bridge
+                if self._try_load_student_implementation():
+                    print(" Loaded student implementation using enhanced bridge")
+                    self.validate_student_implementation()
+                else:
+                    print(" STUDENT IMPLEMENTATION REQUIRED!")
+                    print(" VIBE CODE BB84 ALGORITHM USING THE HINTS PROVIDED TO RUN THE SIMULATION")
+                    print(" This simulation will NOT work without student BB84 code!")
+                    print(" Export your student implementation plugin from the notebook to enable the simulation.")
+                    print(" Open quantum_networking_complete.ipynb for the export helper cell.")
+                    print(" No hardcoded fallbacks available!")
+                    self.student_code_validated = False
         else:
             print(f" Using student implementation: {type(student_implementation).__name__}")
             self.validate_student_implementation()
@@ -226,6 +234,30 @@ class InteractiveQuantumHost(QuantumNode):
             traceback.print_exc()
             return False
 
+    def _try_load_student_implementation(self):
+        """Try to load student implementation using enhanced bridge"""
+        try:
+            from enhanced_student_bridge import EnhancedStudentImplementationBridge
+            
+            print("🔧 Attempting to load student implementation using enhanced bridge...")
+            
+            # Create enhanced bridge
+            self.enhanced_bridge = EnhancedStudentImplementationBridge()
+            
+            if self.enhanced_bridge.student_alice and self.enhanced_bridge.student_bob:
+                print("✅ Enhanced bridge loaded student implementation successfully!")
+                # Set the host reference on the enhanced bridge
+                self.enhanced_bridge.host = self
+                self.student_implementation = self.enhanced_bridge
+                return True
+            else:
+                print("❌ Enhanced bridge could not load student implementation")
+                return False
+                
+        except Exception as e:
+            print(f"❌ Error loading student implementation with enhanced bridge: {e}")
+            return False
+
     # Removed hardcoded notebook adapter. Only student-provided implementations are allowed.
 
     def check_student_implementation_required(self, operation_name):
@@ -236,14 +268,26 @@ class InteractiveQuantumHost(QuantumNode):
         print(f"   has student_implementation: {self.student_implementation is not None}")
         
         if self.require_student_code and not self.student_code_validated:
+            print("=" * 80)
+            print("🚫 SIMULATION BLOCKED - STUDENT IMPLEMENTATION REQUIRED!")
+            print("=" * 80)
             print(f"❌ Cannot perform '{operation_name}' - Student implementation required!")
-            print(" VIBE CODE BB84 ALGORITHM USING THE HINTS PROVIDED TO RUN THE SIMULATION")
-            print(" Steps to enable:")
+            print("")
+            print("📝 VIBE CODE BB84 ALGORITHM USING THE HINTS PROVIDED TO RUN THE SIMULATION")
+            print("")
+            print("🔧 Steps to enable the simulation:")
             print("1. Open the Jupyter notebook (quantum_networking_complete.ipynb)")
-            print("2. Implement your BB84 algorithms using the provided hints")
-            print("3. Create a StudentImplementation class with required methods")
-            print("4. Connect your implementation to the simulation")
-            print(" See the notebook for detailed implementation examples!")
+            print("2. Complete the StudentQuantumHost class implementation")
+            print("3. Implement all required methods:")
+            print("   - bb84_send_qubits()")
+            print("   - process_received_qbit()")
+            print("   - bb84_reconcile_bases()")
+            print("   - bb84_estimate_error_rate()")
+            print("4. Run the notebook cells to define the class")
+            print("5. Then run the simulation")
+            print("")
+            print("🎯 The simulation will ONLY work with your completed BB84 implementation!")
+            print("=" * 80)
             return False
         print(f"✅ Student implementation check passed for '{operation_name}'")
         return True
@@ -404,6 +448,11 @@ class InteractiveQuantumHost(QuantumNode):
                 default_bits = chan.num_bits
         except Exception:
             pass
+        # Use enhanced bridge if available
+        if self.enhanced_bridge and hasattr(self.enhanced_bridge, 'bb84_send_qubits'):
+            print(f"🎓 {self.name}: Using enhanced bridge for bb84_send_qubits")
+            return self.enhanced_bridge.bb84_send_qubits(num_qubits or default_bits)
+            
         if self.student_implementation and hasattr(self.student_implementation, 'bb84_send_qubits'):
             # Reset protocol state for a fresh run
             self.basis_choices = []
@@ -434,6 +483,11 @@ class InteractiveQuantumHost(QuantumNode):
         if not self.check_student_implementation_required("Process Received Qubit"):
             return False
             
+        # Use enhanced bridge if available
+        if self.enhanced_bridge and hasattr(self.enhanced_bridge, 'process_received_qbit'):
+            print(f"🎓 {self.name}: Using enhanced bridge for process_received_qbit")
+            return self.enhanced_bridge.process_received_qbit(qbit, from_channel)
+            
         if self.student_implementation and hasattr(self.student_implementation, 'process_received_qbit'):
             # Ensure the student implementation has a reference to this host
             if not hasattr(self.student_implementation, 'host') or self.student_implementation.host is None:
@@ -455,6 +509,11 @@ class InteractiveQuantumHost(QuantumNode):
         if not self.check_student_implementation_required("BB84 Basis Reconciliation"):
             return False
             
+        # Use enhanced bridge if available
+        if self.enhanced_bridge and hasattr(self.enhanced_bridge, 'bb84_reconcile_bases'):
+            print(f"🎓 {self.name}: Using enhanced bridge for bb84_reconcile_bases")
+            return self.enhanced_bridge.bb84_reconcile_bases(their_bases)
+            
         if self.student_implementation and hasattr(self.student_implementation, 'bb84_reconcile_bases'):
             print(f"🎓 {self.name}: Calling student bb84_reconcile_bases implementation")
             return self.student_implementation.bb84_reconcile_bases(their_bases)
@@ -472,6 +531,11 @@ class InteractiveQuantumHost(QuantumNode):
         print(f"🔍 {self.name}: bb84_estimate_error_rate called with {len(their_bits_sample)} bits")
         if not self.check_student_implementation_required("BB84 Error Rate Estimation"):
             return False
+            
+        # Use enhanced bridge if available
+        if self.enhanced_bridge and hasattr(self.enhanced_bridge, 'bb84_estimate_error_rate'):
+            print(f"🎓 {self.name}: Using enhanced bridge for bb84_estimate_error_rate")
+            return self.enhanced_bridge.bb84_estimate_error_rate(their_bits_sample)
             
         if self.student_implementation and hasattr(self.student_implementation, 'bb84_estimate_error_rate'):
             print(f"🎓 {self.name}: Calling student bb84_estimate_error_rate implementation")

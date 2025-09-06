@@ -6,6 +6,7 @@ import time
 from typing import List, Optional, Dict, Any
 import traceback
 import json
+import os
 
 from ai_agent.src.agents.base.enums import AgentTaskType
 from ai_agent.src.agents.log_summarization.structures import RealtimeLogSummaryInput
@@ -60,6 +61,11 @@ class SimulationManager:
         self.main_event_loop = None
         self.embedding_util = EmbeddingUtil()
         self.embedding_enabled = True  # Start with embedding enabled
+        
+        # Initialize log file saving
+        self.log_file_path = None
+        self.log_file_handle = None
+        self.simulation_logs = []  # Store all logs for final file output
 
     @classmethod
     def get_instance(cls) -> "SimulationManager":
@@ -91,6 +97,9 @@ class SimulationManager:
                 metrics=None,
             )
             self.save_simulation = save_simulation(self.simulation_data)
+            
+            # Initialize log file for this simulation
+            self._initialize_log_file(network.name)
             try:
                 self.main_event_loop = asyncio.get_running_loop()
                 print(f"Captured main event loop: {self.main_event_loop}")
@@ -118,6 +127,10 @@ class SimulationManager:
 
     def on_update(self, event: Event) -> None:
         self.emit_event("simulation_event", event.to_dict())
+        
+        # Create formatted log entry for file saving
+        self._save_log_to_file(event)
+        
         log_entry = add_log_entry(
             {
                 "simulation_id": self.simulation_data.pk,
@@ -289,6 +302,9 @@ class SimulationManager:
                     update_simulation_status(
                         self.simulation_data.pk, SimulationStatus.COMPLETED
                     )
+                    
+                    # Save final log file when simulation completes
+                    self._finalize_log_file()
 
                 except Exception as e:
                     self._handle_error(e)
@@ -296,6 +312,9 @@ class SimulationManager:
                     update_simulation_status(
                         self.simulation_data.pk, SimulationStatus.FAILED
                     )
+                    
+                    # Save log file even if simulation fails
+                    self._finalize_log_file()
 
                 finally:
                     # Reset run state if this wasn't from an external stop
@@ -490,3 +509,102 @@ class SimulationManager:
         self.emit_event(
             "simulation_progress", {"progress": progress, "message": message}
         )
+
+    def _initialize_log_file(self, simulation_name: str) -> None:
+        """Initialize log file for the simulation"""
+        try:
+            # Create logs directory if it doesn't exist
+            logs_dir = "simulation_logs"
+            if not os.path.exists(logs_dir):
+                os.makedirs(logs_dir)
+            
+            # Create timestamped log file
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            safe_name = "".join(c for c in simulation_name if c.isalnum() or c in (' ', '-', '_')).rstrip()
+            safe_name = safe_name.replace(' ', '_')
+            self.log_file_path = os.path.join(logs_dir, f"simulation_log_{safe_name}_{timestamp}.txt")
+            
+            # Initialize log file with header
+            with open(self.log_file_path, 'w', encoding='utf-8') as f:
+                f.write("=" * 80 + "\n")
+                f.write(f"QUANTUM NETWORK SIMULATION LOG\n")
+                f.write(f"Simulation: {simulation_name}\n")
+                f.write(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write("=" * 80 + "\n\n")
+            
+            print(f"📝 Log file initialized: {self.log_file_path}")
+            
+        except Exception as e:
+            print(f"⚠️ Error initializing log file: {e}")
+            self.log_file_path = None
+
+    def _save_log_to_file(self, event: Event) -> None:
+        """Save individual log entry to file"""
+        if not self.log_file_path:
+            return
+            
+        try:
+            # Format the log entry
+            timestamp = datetime.now().strftime('%H:%M:%S.%f')[:-3]  # Include milliseconds
+            event_type = str(event.event_type)
+            node_name = event.node.name if hasattr(event.node, 'name') else 'Unknown'
+            
+            # Extract message from event data
+            message = "No message"
+            if hasattr(event, 'data') and event.data:
+                if isinstance(event.data, dict):
+                    message = event.data.get('message', str(event.data))
+                else:
+                    message = str(event.data)
+            
+            # Create log line
+            log_line = f"[{timestamp}] {event_type} | {node_name} | {message}\n"
+            
+            # Append to file immediately
+            with open(self.log_file_path, 'a', encoding='utf-8') as f:
+                f.write(log_line)
+                
+            # Also store in memory for final summary
+            self.simulation_logs.append({
+                'timestamp': timestamp,
+                'event_type': event_type,
+                'node_name': node_name,
+                'message': message,
+                'full_data': event.to_dict() if hasattr(event, 'to_dict') else str(event)
+            })
+            
+        except Exception as e:
+            print(f"⚠️ Error saving log to file: {e}")
+
+    def _finalize_log_file(self) -> None:
+        """Finalize log file with summary and statistics"""
+        if not self.log_file_path:
+            return
+            
+        try:
+            with open(self.log_file_path, 'a', encoding='utf-8') as f:
+                f.write("\n" + "=" * 80 + "\n")
+                f.write("SIMULATION SUMMARY\n")
+                f.write("=" * 80 + "\n")
+                f.write(f"Total log entries: {len(self.simulation_logs)}\n")
+                f.write(f"Simulation ended: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                
+                # Count events by type
+                event_counts = {}
+                for log in self.simulation_logs:
+                    event_type = log['event_type']
+                    event_counts[event_type] = event_counts.get(event_type, 0) + 1
+                
+                f.write("\nEvent Summary:\n")
+                for event_type, count in sorted(event_counts.items()):
+                    f.write(f"  {event_type}: {count}\n")
+                
+                f.write("\n" + "=" * 80 + "\n")
+                f.write("END OF SIMULATION LOG\n")
+                f.write("=" * 80 + "\n")
+            
+            print(f"📝 Simulation log saved to: {self.log_file_path}")
+            print(f"📊 Total log entries: {len(self.simulation_logs)}")
+            
+        except Exception as e:
+            print(f"⚠️ Error finalizing log file: {e}")

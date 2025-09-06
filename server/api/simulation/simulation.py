@@ -57,7 +57,32 @@ async def get_student_implementation_status():
     Used by frontend to show vibe code message when needed.
     """
     try:
-        # First, check notebook-provided status file so the UI can unblock before manager starts
+        # CRITICAL: Check if student has completed their BB84 implementation
+        student_code_ready = False
+        try:
+            # First, check the status file created by the notebook
+            import os
+            import json
+            status_file = "student_implementation_status.json"
+            
+            if os.path.exists(status_file):
+                with open(status_file, "r") as f:
+                    status = json.load(f)
+                
+                # Check if the status indicates student implementation is ready
+                if status.get("student_implementation_ready", False) and status.get("status") == "completed":
+                    # If the status file indicates completion, trust it
+                    # The notebook has already verified the StudentQuantumHost class exists
+                    student_code_ready = True
+                else:
+                    student_code_ready = False
+            else:
+                student_code_ready = False
+                
+        except Exception as _e:
+            student_code_ready = False
+        
+        # Fallback: check notebook-provided status file
         notebook_ready = False
         try:
             import os
@@ -74,20 +99,20 @@ async def get_student_implementation_status():
         # Check if any quantum hosts in the current world require student implementation
         manager = get_manager()
         if manager is None or not manager.is_running:
-            # If no simulation running, use notebook status to decide whether to block the UI
-            if notebook_ready:
+            # If no simulation running, use student code status to decide whether to block the UI
+            if student_code_ready:
                 return {
                     "requires_student_implementation": True,
                     "has_valid_implementation": True,
-                    "message": "Student implementation detected from notebook.",
+                    "message": "Student BB84 implementation detected and ready!",
                     "blocking_reason": None,
                 }
             else:
                 return {
                     "requires_student_implementation": True,
                     "has_valid_implementation": False,
-                    "message": "VIBE CODE BB84 ALGORITHM USING THE HINTS PROVIDED TO RUN THE SIMULATION",
-                    "blocking_reason": "No simulation running - student implementation will be required when started",
+                    "message": "Complete the BB84 algorithms in vibe code section to run the simulation",
+                    "blocking_reason": "StudentQuantumHost class not found or incomplete",
                 }
         
         # Check current simulation for quantum hosts that need student implementation
@@ -95,13 +120,13 @@ async def get_student_implementation_status():
         if world is None:
             return {
                 "requires_student_implementation": True,
-                "has_valid_implementation": bool(notebook_ready),
+                "has_valid_implementation": student_code_ready,
                 "message": (
-                    "Student implementation detected from notebook."
-                    if notebook_ready
-                    else "VIBE CODE BB84 ALGORITHM USING THE HINTS PROVIDED TO RUN THE SIMULATION"
+                    "Student BB84 implementation detected and ready!"
+                    if student_code_ready
+                    else "Complete the BB84 algorithms in vibe code section to run the simulation"
                 ),
-                "blocking_reason": None if notebook_ready else "No world loaded",
+                "blocking_reason": None if student_code_ready else "StudentQuantumHost class not found or incomplete",
             }
         
         # Check all quantum hosts in all zones
@@ -119,8 +144,8 @@ async def get_student_implementation_status():
                             has_valid_implementation = False
                             blocking_hosts.append(getattr(node, 'name', 'unknown'))
         
-        # If notebook indicates ready, prefer that signal to unblock UI
-        if notebook_ready:
+        # If student code is ready, prefer that signal to unblock UI
+        if student_code_ready:
             has_valid_implementation = True
             blocking_hosts = []
 
@@ -128,7 +153,7 @@ async def get_student_implementation_status():
             return {
                 "requires_student_implementation": True,
                 "has_valid_implementation": False,
-                "message": "VIBE CODE BB84 ALGORITHM USING THE HINTS PROVIDED TO RUN THE SIMULATION",
+                "message": "Complete the BB84 algorithms in vibe code section to run the simulation",
                 "blocking_reason": f"Quantum hosts require student implementation: {', '.join(blocking_hosts)}",
                 "blocking_hosts": blocking_hosts
             }
@@ -136,7 +161,7 @@ async def get_student_implementation_status():
         return {
             "requires_student_implementation": student_implementation_required,
             "has_valid_implementation": has_valid_implementation,
-            "message": "Student implementation is working correctly!" if has_valid_implementation else "",
+            "message": "Student BB84 implementation is working correctly!" if has_valid_implementation else "Complete the BB84 algorithms in vibe code section to run the simulation",
             "blocking_reason": None
         }
         
@@ -146,7 +171,7 @@ async def get_student_implementation_status():
         return {
             "requires_student_implementation": True,
             "has_valid_implementation": False,
-            "message": "VIBE CODE BB84 ALGORITHM USING THE HINTS PROVIDED TO RUN THE SIMULATION",
+            "message": "Complete the BB84 algorithms in vibe code section to run the simulation",
             "blocking_reason": f"Error checking status: {str(e)}"
         }
 

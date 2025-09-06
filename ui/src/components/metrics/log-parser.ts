@@ -272,6 +272,97 @@ export function convertEventToLog(eventData: any): LogI {
 
                     break
 
+                // Student BB84 Implementation Events
+                case 'bb84_send_qubits':
+                    level = LogLevel.PROTOCOL;
+                    message = `Student Alice: Prepared ${eventDetails?.num_qubits || 'unknown'} qubits using bb84_send_qubits()`;
+                    if (eventDetails?.qubits_sample) {
+                        message += ` [bb84_send_qubits] (${eventDetails.num_qubits} qubits)`;
+                    }
+                    break;
+
+                case 'bb84_reconcile_bases':
+                    level = LogLevel.PROTOCOL;
+                    message = `Student Bob bb84_reconcile_bases(): Found ${eventDetails?.matching_bases || 'unknown'} matching bases out of ${eventDetails?.total_bases || 'unknown'}`;
+                    if (eventDetails?.efficiency !== undefined) {
+                        message += ` (Efficiency: ${(eventDetails.efficiency * 100).toFixed(1)}%)`;
+                    }
+                    message += ` [bb84_reconcile_bases] (${eventDetails?.matching_bases || 'unknown'} shared bases)`;
+                    if (eventDetails?.efficiency !== undefined) {
+                        message += ` (${(eventDetails.efficiency * 100).toFixed(1)}% efficiency)`;
+                    }
+                    break;
+
+                case 'bb84_estimate_error_rate':
+                    level = LogLevel.PROTOCOL;
+                    const errorRate = eventDetails?.error_rate || 0;
+                    const errors = eventDetails?.errors || 0;
+                    const total = eventDetails?.total || 0;
+                    message = `Student Bob bb84_estimate_error_rate(): ${(errorRate * 100).toFixed(1)}% error rate (${errors}/${total} errors) using student implementation [bb84_estimate_error_rate] (${(errorRate * 100).toFixed(1)}% error rate) (${errors}/${total} errors)`;
+                    break;
+
+                case 'bb84_complete':
+                    level = LogLevel.PROTOCOL;
+                    message = `BB84 Protocol Complete! All student methods executed successfully [bb84_complete]`;
+                    break;
+
+                case 'student_bb84_complete':
+                    level = LogLevel.PROTOCOL;
+                    const methods = eventDetails?.methods || [];
+                    const errorRateComplete = eventDetails?.error_rate || 0;
+                    message = `Student BB84 Implementation Complete! All methods executed successfully: ${methods.join(', ')} (${(errorRateComplete * 100).toFixed(1)}% error rate)`;
+                    break;
+
+                case 'student_bb84_progress':
+                    level = LogLevel.PROTOCOL;
+                    message = `BB84 Progress: ${eventDetails?.current || 0}/${eventDetails?.total || 0} qubits sent`;
+                    break;
+
+                case 'student_bb84_data':
+                    level = LogLevel.PROTOCOL;
+                    message = `Student Alice data: Generated ${eventDetails?.bits || 0} bits and ${eventDetails?.bases || 0} bases`;
+                    break;
+
+                case 'student_bb84_start':
+                    level = LogLevel.PROTOCOL;
+                    message = `Student BB84 implementation: Starting protocol with ${eventDetails?.num_qubits || 0} qubits`;
+                    break;
+
+                case 'student_bb84_qubits_sent':
+                    level = LogLevel.STORY;
+                    const qubitCount = eventDetails?.qubit_count || 0;
+                    const qubitSample = eventDetails?.qubit_sample || [];
+                    message = `Student BB84: Sending ${qubitCount} encoded qubits from Alice's bb84_send_qubits() through quantum channel (${qubitCount} qubits) - Sample: [${qubitSample.join(', ')}...]`;
+                    break;
+
+                case 'student_bb84_reconcile_start':
+                    level = LogLevel.PROTOCOL;
+                    message = `Student Bob: Starting reconciliation process with Alice's bases [bb84_reconcile_bases]`;
+                    break;
+
+                case 'student_bb84_reconcile_complete':
+                    level = LogLevel.PROTOCOL;
+                    const sharedBases = eventDetails?.shared_bases || 0;
+                    const efficiency = eventDetails?.efficiency || 0;
+                    message = `Student Bob: Reconciliation completed - found ${sharedBases} shared bases [bb84_reconcile_bases] (${sharedBases} shared bases) (${(efficiency * 100).toFixed(1)}% efficiency)`;
+                    break;
+
+                case 'student_bb84_error_start':
+                    level = LogLevel.PROTOCOL;
+                    message = `Student Bob: Starting error rate estimation process [bb84_estimate_error_rate]`;
+                    break;
+
+                case 'student_bb84_ready':
+                    level = LogLevel.PROTOCOL;
+                    const receivedQubits = eventDetails?.received_qubits || 0;
+                    message = `Student Bob: Received all ${receivedQubits} qubits, ready for bb84_reconcile_bases() [bb84_reconcile_bases]`;
+                    break;
+
+                case 'student_bb84_trigger':
+                    level = LogLevel.PROTOCOL;
+                    message = `Student Alice: Triggering reconciliation - sending bases to Bob [send_bases_for_reconcile]`;
+                    break;
+
                 default:
                     // message = `${source}: Unhandled simulation event type "${eventType}".`;
                     // level = LogLevel.WARN; // Unhandled type is a warning

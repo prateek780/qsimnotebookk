@@ -18,6 +18,50 @@ current_dir = os.getcwd()
 if current_dir not in sys.path:
     sys.path.append(current_dir)
 
+# CRITICAL: Check if student has completed their BB84 implementation
+def check_student_bb84_implementation():
+    """
+    CRITICAL: Check if student has completed their BB84 implementation.
+    Returns True only if StudentQuantumHost class exists with all required methods.
+    """
+    print("🔍 Checking for student BB84 implementation...")
+    
+    try:
+        # Check if StudentQuantumHost class is defined in the current scope
+        import sys
+        current_frame = sys._getframe(1)
+        global_vars = current_frame.f_globals
+        
+        if 'StudentQuantumHost' not in global_vars:
+            print("❌ StudentQuantumHost class not found!")
+            return False
+        
+        # Get the class and verify it has all required methods
+        StudentQuantumHost = global_vars['StudentQuantumHost']
+        required_methods = ['bb84_send_qubits', 'process_received_qbit', 'bb84_reconcile_bases', 'bb84_estimate_error_rate']
+        
+        missing_methods = []
+        for method in required_methods:
+            if not hasattr(StudentQuantumHost, method):
+                missing_methods.append(method)
+        
+        if missing_methods:
+            print(f"❌ StudentQuantumHost missing methods: {missing_methods}")
+            return False
+        
+        # Test that we can create an instance
+        try:
+            test_instance = StudentQuantumHost("Test")
+            print("✅ StudentQuantumHost class found with all required methods!")
+            return True
+        except Exception as e:
+            print(f"❌ Error creating StudentQuantumHost instance: {e}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Error checking student implementation: {e}")
+        return False
+
 # CRITICAL: Disable server-dependent logging to avoid dependency crashes
 def disable_server_logging():
     """Disable problematic server logging that causes dependency issues"""
@@ -46,6 +90,29 @@ def run_complete_simulation_in_notebook():
     """
     Run the complete quantum-classical simulation using the vibe-coded implementation from Cell 13
     """
+    
+    # CRITICAL: Check if student has completed their BB84 vibe code
+    if not check_student_bb84_implementation():
+        print("\n" + "=" * 80)
+        print("🚫 SIMULATION BLOCKED - STUDENT BB84 IMPLEMENTATION REQUIRED!")
+        print("=" * 80)
+        print("❌ You must complete your BB84 algorithm to run this simulation!")
+        print("")
+        print("📝 VIBE CODE BB84 ALGORITHM USING THE HINTS PROVIDED TO RUN THE SIMULATION")
+        print("")
+        print("🔧 Steps to enable the simulation:")
+        print("1. Complete the StudentQuantumHost class in the notebook")
+        print("2. Implement all required methods:")
+        print("   - bb84_send_qubits()")
+        print("   - process_received_qbit()")
+        print("   - bb84_reconcile_bases()")
+        print("   - bb84_estimate_error_rate()")
+        print("3. Run the notebook cells to define the class")
+        print("4. Then run this simulation")
+        print("")
+        print("🎯 The simulation will ONLY work with your completed BB84 implementation!")
+        print("=" * 80)
+        return False
     
     # Step 1: Disable problematic logging
     disable_server_logging()
