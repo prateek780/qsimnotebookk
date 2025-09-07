@@ -1,0 +1,49 @@
+================================================================================
+QUANTUM NETWORK SIMULATION LOG
+Simulation: test1
+Started: 2025-09-06 16:34:52
+================================================================================
+
+[16:35:01.050] SimulationEventType.PACKET_TRANSMITTED | ClassicalHost-10-ClassicalRouter-6 | {'packet': <classical_network.packet.ClassicDataPacket object at 0x000001CAC2E97380>}
+[16:35:01.052] SimulationEventType.DATA_SENT | ClassicalHost-10 | {'data': 'hi message', 'destination': Host - 'ClassicalHost-1'}
+[16:35:04.890] SimulationEventType.PACKET_TRANSMITTED | Router - 'ClassicalRouter-6' <quantum_network.adapter.QuantumAdapter object at 0x000001CAC2C67C50> Connection | {'packet': <classical_network.packet.ClassicDataPacket object at 0x000001CAC2E97380>}
+[16:35:04.892] SimulationEventType.PACKET_RECEIVED | ClassicalRouter-6 | {'packet': <classical_network.packet.ClassicDataPacket object at 0x000001CAC2E97380>}
+[16:35:07.895] SimulationEventType.INFO | QuantumHost-8 | STUDENT BB84: Starting with 16 qubits using student code
+[16:35:07.905] SimulationEventType.DATA_SENT | QuantumHost-8 | STUDENT BB84: Sent 16 qubits
+[16:35:07.907] SimulationEventType.INFO | QuantumHost-8 | {'type': 'qkd_reconcile_bases_sent', 'host': 'QuantumHost-8', 'count': 16}
+[16:35:07.909] SimulationEventType.PACKET_TRANSMITTED | QC_Router_Connection | {'packet': <quantum_network.packet.QKDTransmissionPacket object at 0x000001CAC2B77CB0>}
+[16:35:07.912] SimulationEventType.QKD_INITIALIZED | QuantumAdapter-9 | {'with_adapter': <quantum_network.adapter.QuantumAdapter object at 0x000001CAC2C99E80>}
+[16:35:07.915] SimulationEventType.PACKET_RECEIVED | QC_Router_QuantumAdapter-9 | {'packet': <classical_network.packet.ClassicDataPacket object at 0x000001CAC2E97380>}
+[16:35:12.419] SimulationEventType.DATA_RECEIVED | QuantumHost-2 | STUDENT Bob: Received qubit 1/0
+[16:35:12.423] SimulationEventType.DATA_RECEIVED | QuantumHost-2 | STUDENT Bob: Received qubit 2/0
+[16:35:12.431] SimulationEventType.DATA_RECEIVED | QuantumHost-2 | STUDENT Bob: Received qubit 3/0
+[16:35:12.435] SimulationEventType.DATA_RECEIVED | QuantumHost-2 | STUDENT Bob: Received qubit 4/0
+[16:35:12.439] SimulationEventType.DATA_RECEIVED | QuantumHost-2 | STUDENT Bob: Received qubit 5/0
+[16:35:12.443] SimulationEventType.DATA_RECEIVED | QuantumHost-2 | STUDENT Bob: Received qubit 6/0
+[16:35:12.448] SimulationEventType.DATA_RECEIVED | QuantumHost-2 | STUDENT Bob: Received qubit 7/0
+[16:35:12.455] SimulationEventType.DATA_RECEIVED | QuantumHost-2 | STUDENT Bob: Received qubit 8/0
+[16:35:12.464] SimulationEventType.DATA_RECEIVED | QuantumHost-2 | STUDENT Bob: Received qubit 9/0
+[16:35:12.470] SimulationEventType.DATA_RECEIVED | QuantumHost-2 | STUDENT Bob: Received qubit 10/0
+[16:35:12.474] SimulationEventType.DATA_RECEIVED | QuantumHost-2 | STUDENT Bob: Received qubit 11/0
+[16:35:12.483] SimulationEventType.DATA_RECEIVED | QuantumHost-2 | STUDENT Bob: Received qubit 12/0
+[16:35:12.495] SimulationEventType.DATA_RECEIVED | QuantumHost-2 | STUDENT Bob: Received qubit 13/0
+[16:35:12.504] SimulationEventType.DATA_RECEIVED | QuantumHost-2 | STUDENT Bob: Received qubit 14/0
+[16:35:12.510] SimulationEventType.DATA_RECEIVED | QuantumHost-2 | STUDENT Bob: Received qubit 15/0
+[16:35:12.514] SimulationEventType.DATA_RECEIVED | QuantumHost-2 | STUDENT Bob: Received qubit 16/0
+[16:35:12.518] SimulationEventType.INFO | QuantumHost-2 | {'type': 'qkd_reconcile_bases_received', 'host': 'QuantumHost-2', 'count': 16}
+[16:35:12.523] SimulationEventType.INFO | QuantumHost-2 | STUDENT Bob: Found 10 matching bases (62.5% efficiency)
+[16:35:12.525] SimulationEventType.PACKET_TRANSMITTED | QC_Router_Connection | {'packet': <quantum_network.packet.QKDTransmissionPacket object at 0x000001CAC2C67D90>}
+[16:35:12.532] SimulationEventType.DATA_RECEIVED | QuantumAdapter-4 | {'packet': <quantum_network.packet.QKDTransmissionPacket object at 0x000001CAC2B77CB0>}
+[16:35:12.536] SimulationEventType.PACKET_RECEIVED | QC_Router_QuantumAdapter-4 | {'packet': <quantum_network.packet.QKDTransmissionPacket object at 0x000001CAC2B77CB0>}
+[16:35:12.540] SimulationEventType.INFO | QuantumHost-8 | {'type': 'qkd_shared_bases_indices_received', 'host': 'QuantumHost-8', 'count': 10}
+[16:35:12.544] SimulationEventType.INFO | QuantumHost-8 | {'type': 'qkd_shared_bases_indices_set', 'host': 'QuantumHost-8', 'count': 10}
+[16:35:12.546] SimulationEventType.INFO | QuantumHost-8 | {'type': 'qkd_estimate_error_rate_sent', 'host': 'QuantumHost-8', 'sample_size': 3}
+[16:35:12.550] SimulationEventType.PACKET_TRANSMITTED | QC_Router_Connection | {'packet': <quantum_network.packet.QKDTransmissionPacket object at 0x000001CAC2E7FB10>}
+[16:35:12.553] SimulationEventType.DATA_RECEIVED | QuantumAdapter-9 | {'packet': <quantum_network.packet.QKDTransmissionPacket object at 0x000001CAC2C67D90>}
+[16:35:12.556] SimulationEventType.PACKET_RECEIVED | QC_Router_QuantumAdapter-9 | {'packet': <quantum_network.packet.QKDTransmissionPacket object at 0x000001CAC2C67D90>}
+[16:35:17.059] SimulationEventType.INFO | QuantumHost-2 | {'type': 'qkd_estimate_error_rate_received', 'host': 'QuantumHost-2', 'sample_size': 3}
+[16:35:17.064] SimulationEventType.INFO | QuantumHost-2 | STUDENT Bob: Error rate 66.7%
+[16:35:17.067] SimulationEventType.SHARED_KEY_GENERATED | QuantumHost-2 | BB84 QKD protocol completed successfully using student code
+[16:35:17.070] SimulationEventType.PACKET_TRANSMITTED | QC_Router_Connection | {'packet': <quantum_network.packet.QKDTransmissionPacket object at 0x000001CAC4590180>}
+[16:35:17.073] SimulationEventType.DATA_RECEIVED | QuantumAdapter-4 | {'packet': <quantum_network.packet.QKDTransmissionPacket object at 0x000001CAC2E7FB10>}
+[16:35:17.076] SimulationEventType.PACKET_RECEIVED | QC_Router_QuantumAdapter-4 | {'packet': <quantum_network.packet.QKDTransmissionPacket object at 0x000001CAC2E7FB10>}
