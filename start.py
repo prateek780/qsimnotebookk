@@ -10,7 +10,7 @@ sys.path.insert(0, str(ROOT))
 os.environ["REDIS_HOST"] = "redis-11509.c90.us-east-1-3.ec2.redns.redis-cloud.com"
 os.environ["REDIS_PORT"] = "11509"
 os.environ["REDIS_USERNAME"] = "default"
-os.environ["REDIS_PASSWORD"] = "Enter the Redis password here"
+os.environ["REDIS_PASSWORD"] = "aDevCXKeLli9kldGJccV15D1yS93Oyvd"
 os.environ["REDIS_DB"] = "0"
 os.environ["REDIS_SSL"] = "False"
 
